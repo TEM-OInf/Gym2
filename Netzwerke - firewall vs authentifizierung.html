@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wer kommt rein? — L7 Escape Room</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --border:   #21262d;
+  --green:    #39d353;
+  --green-d:  #0d2b14;
+  --amber:    #e3b341;
+  --amber-d:  #2b1e00;
+  --red:      #f85149;
+  --red-d:    #2b0d0d;
+  --text:     #c9d1d9;
+  --dim:      #484f58;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+  --sans: 'Rajdhani', system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px 60px;
+}
+.screen { display: none; width: 100%; max-width: 700px; }
+.screen.active { display: block; }
+
+/* ── HEADER ── */
+.hd { text-align: center; margin-bottom: 28px; padding-top: 12px; }
+.hd-sub { font-size: 10px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
+.hd-title { font-family:var(--sans); font-size:28px; font-weight:700; color:var(--green); }
+
+/* ── PROGRESS ── */
+.prog { display:flex; gap:6px; justify-content:center; margin-bottom:28px; }
+.prog-s { width:60px; height:4px; border-radius:2px; background:var(--border); transition:background .3s; }
+.prog-s.done { background:var(--green); }
+.prog-s.now  { background:var(--amber); }
+
+/* ── DOTS ── */
+.dots { display:flex; gap:6px; justify-content:center; margin-bottom:18px; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--border); }
+.dot.done { background:var(--green); }
+.dot.now  { background:var(--amber); }
+
+/* ── CARD ── */
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:20px 22px; margin-bottom:14px;
+}
+.c-label { font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:10px; }
+.c-scenario {
+  font-size:13.5px; line-height:1.7; color:var(--text);
+  border-left:3px solid #1a6b2a; padding-left:14px; margin-bottom:16px;
+}
+.c-question {
+  font-family:var(--sans); font-size:17px; font-weight:600;
+  color:#e6edf3; margin-bottom:14px; line-height:1.4;
+}
+
+/* ── OPTIONS ── */
+.opts { display:flex; flex-direction:column; gap:8px; }
+.opt {
+  background:var(--bg); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-family:var(--mono); font-size:13px;
+  padding:10px 16px; text-align:left; cursor:pointer;
+  transition:border-color .12s, background .12s;
+}
+.opt:hover:not(:disabled) { border-color:var(--green); background:var(--green-d); }
+.opt.ok  { border-color:var(--green); background:var(--green-d); color:var(--green); }
+.opt.bad { border-color:var(--red);   background:var(--red-d);   color:var(--red); }
+.opt:disabled { cursor:default; }
+
+/* ── FEEDBACK ── */
+.fb { margin-top:12px; padding:10px 14px; border-radius:6px; font-size:13px; line-height:1.5; display:none; }
+.fb.show { display:block; }
+.fb.ok  { background:var(--green-d); border:1px solid var(--green); color:#8dff9a; }
+.fb.bad { background:var(--red-d);   border:1px solid var(--red);   color:#ffaaaa; }
+
+/* ── NEXT BTN ── */
+.nxt {
+  background:var(--green); border:none; border-radius:6px;
+  color:var(--bg); font-family:var(--mono); font-size:13px; font-weight:700;
+  padding:10px 24px; cursor:pointer; margin-top:14px; display:none; letter-spacing:.04em;
+}
+.nxt.show { display:inline-block; }
+.nxt:hover { opacity:.88; }
+
+/* ── PASSWORD ── */
+.pw-reveal {
+  font-size:22px; letter-spacing:.3em; color:var(--amber);
+  padding:12px 22px; background:var(--amber-d); border:1px solid var(--amber);
+  border-radius:6px; display:inline-block; margin:14px 0;
+}
+.pw-row { display:flex; gap:8px; justify-content:center; margin-top:14px; }
+.pw-in {
+  background:var(--bg); border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-family:var(--mono); font-size:16px; letter-spacing:.1em;
+  padding:10px 14px; text-transform:uppercase; width:210px; text-align:center;
+}
+.pw-in:focus { outline:none; border-color:var(--green); }
+.pw-in.wide { width:290px; }
+.pw-btn {
+  background:var(--green); border:none; border-radius:6px;
+  color:var(--bg); font-family:var(--mono); font-size:14px; font-weight:700;
+  padding:10px 20px; cursor:pointer;
+}
+.pw-err { color:var(--red); font-size:12px; margin-top:8px; display:none; }
+
+/* ── LETTERS ── */
+.letters { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:18px 0; }
+.lbox {
+  width:42px; height:50px; border:1px solid var(--border); border-radius:5px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:700; color:var(--amber); background:var(--surface);
+  transition:border-color .2s;
+}
+.lbox.new { border-color:var(--amber); }
+.lbox.empty { color:var(--dim); font-size:14px; }
+
+/* ── INTRO ── */
+.intro { text-align:center; padding:40px 16px; }
+.intro-title { font-family:var(--sans); font-size:48px; font-weight:700; color:var(--green); margin-bottom:6px; letter-spacing:.02em; }
+.intro-sub { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:30px; }
+.intro-p { font-size:14px; line-height:1.8; color:var(--text); max-width:440px; margin:0 auto 30px; }
+.start { background:var(--green); border:none; border-radius:8px; color:var(--bg); font-family:var(--sans); font-size:18px; font-weight:700; padding:14px 44px; cursor:pointer; }
+.start:hover { opacity:.88; }
+
+/* ── SUCCESS ── */
+.success { text-align:center; padding:48px 16px; }
+.s-icon { font-size:72px; margin-bottom:18px; }
+.s-title { font-family:var(--sans); font-size:38px; font-weight:700; color:var(--green); margin-bottom:14px; }
+.s-word { font-size:18px; letter-spacing:.18em; color:var(--amber); padding:14px 24px; background:var(--amber-d); border:1px solid var(--amber); border-radius:6px; display:inline-block; margin:16px 0; }
+.s-p { font-size:13px; color:var(--dim); line-height:1.8; max-width:420px; margin:0 auto; }
+
+/* ── INFO BAR ── */
+.infobar { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:10px 16px; font-size:11.5px; color:var(--dim); margin-bottom:12px; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<!-- ══════════ INTRO ══════════ -->
+<div id="s-intro" class="screen active">
+  <div class="intro">
+    <div class="intro-title">Wer kommt rein?</div>
+    <div class="intro-sub">L7 &nbsp;·&nbsp; Escape Room &nbsp;·&nbsp; Informatik Grundlagenfach</div>
+    <p class="intro-p">
+      Drei Räume. Szenarien aus dem Netz-Alltag.<br>
+      Analysieren Sie, sammeln Sie Buchstaben, entschlüsseln Sie das Losungswort.<br><br>
+      Dauer: ca. 20 Minuten &nbsp;·&nbsp; Arbeiten Sie zu zweit.
+    </p>
+    <button class="start" onclick="goR1()">→ Starten</button>
+  </div>
+</div>
+
+<!-- ══════════ RAUM 1 ══════════ -->
+<div id="s-r1" class="screen">
+  <div class="hd">
+    <div class="hd-sub">Raum 1 von 3</div>
+    <div class="hd-title">Der Entscheidungsbaum</div>
+  </div>
+  <div class="prog"><div class="prog-s now"></div><div class="prog-s"></div><div class="prog-s"></div></div>
+  <div class="dots" id="r1-dots"></div>
+  <div id="r1-body"></div>
+</div>
+
+<!-- ══════════ GATE 1 ══════════ -->
+<div id="s-g1" class="screen">
+  <div class="hd">
+    <div class="hd-sub">Raum 1 — abgeschlossen</div>
+    <div class="hd-title">Passwort erhalten</div>
+  </div>
+  <div class="prog"><div class="prog-s done"></div><div class="prog-s now"></div><div class="prog-s"></div></div>
+  <div class="card">
+    <div class="c-label">✓ Entscheidungsbaum korrekt durchlaufen</div>
+    <p style="font-size:13px;line-height:1.65;margin-bottom:14px;">
+      Sie haben erkannt: <strong style="color:#e6edf3">Authentifizierung</strong> prüft, <em>wer</em> Sie sind.
+      Eine <strong style="color:#e6edf3">Firewall</strong> filtert Datenpakete nach Regeln — unabhängig von Ihrer Identität.
+    </p>
+    <p style="font-size:12px;color:var(--dim);margin-bottom:6px;">Das Passwort für Raum 2 lautet:</p>
+    <div class="pw-reveal">WISSEN</div>
+    <p style="font-size:11px;color:var(--dim);margin-top:8px;">Notieren Sie es — Sie brauchen es gleich.</p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="c-label">Zugang zu Raum 2</div>
+    <p style="font-size:12px;color:var(--dim);margin-bottom:12px;">Geben Sie das Passwort ein, um fortzufahren.</p>
+    <div class="pw-row">
+      <input type="text" class="pw-in" id="g1-in" placeholder="PASSWORT" onkeydown="if(event.key==='Enter')chkG1()">
+      <button class="pw-btn" onclick="chkG1()">→</button>
+    </div>
+    <p class="pw-err" id="g1-err">Falsches Passwort — versuchen Sie es erneut.</p>
+  </div>
+</div>
+
+<!-- ══════════ RAUM 2 ══════════ -->
+<div id="s-r2" class="screen">
+  <div class="hd">
+    <div class="hd-sub">Raum 2 von 3</div>
+    <div class="hd-title">Die Buchstabensammlung</div>
+  </div>
+  <div class="prog"><div class="prog-s done"></div><div class="prog-s now"></div><div class="prog-s"></div></div>
+  <div class="dots" id="r2-dots"></div>
+  <div class="infobar">Für jede Antwort erhalten Sie einen Buchstaben — ob richtig oder falsch. Am Schluss müssen Sie die Buchstaben in die <strong>richtige Reihenfolge</strong> bringen.</div>
+  <div class="letters" id="r2-letters"></div>
+  <div id="r2-body"></div>
+</div>
+
+<!-- ══════════ GATE 2 ══════════ -->
+<div id="s-g2" class="screen">
+  <div class="hd">
+    <div class="hd-sub">Raum 2 — abgeschlossen</div>
+    <div class="hd-title">Buchstaben sortieren</div>
+  </div>
+  <div class="prog"><div class="prog-s done"></div><div class="prog-s done"></div><div class="prog-s now"></div></div>
+  <div class="card">
+    <div class="c-label">Gesammelte Buchstaben (in Reihenfolge Ihrer Antworten)</div>
+    <div class="letters" id="g2-letters"></div>
+    <p style="font-size:13px;line-height:1.65;color:var(--dim);">
+      Bringen Sie diese Buchstaben in die richtige Reihenfolge. Das resultierende Wort ist das Passwort für Raum 3.
+    </p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div class="c-label">Zugang zu Raum 3</div>
+    <p style="font-size:12px;color:var(--dim);margin-bottom:12px;">Sortiertes Wort eingeben:</p>
+    <div class="pw-row">
+      <input type="text" class="pw-in" id="g2-in" placeholder="??????" onkeydown="if(event.key==='Enter')chkG2()">
+      <button class="pw-btn" onclick="chkG2()">→</button>
+    </div>
+    <p class="pw-err" id="g2-err">Noch nicht ganz — überprüfen Sie die Reihenfolge der Buchstaben.</p>
+  </div>
+</div>
+
+<!-- ══════════ RAUM 3 ══════════ -->
+<div id="s-r3" class="screen">
+  <div class="hd">
+    <div class="hd-sub">Raum 3 von 3</div>
+    <div class="hd-title">Das Losungswort</div>
+  </div>
+  <div class="prog"><div class="prog-s done"></div><div class="prog-s done"></div><div class="prog-s now"></div></div>
+  <div class="card">
+    <div class="c-label">Abschlussfrage</div>
+    <p class="c-scenario">
+      Passwörter, Firewalls, Zertifikate, 2FA — all diese Mechanismen haben ein gemeinsames Ziel:
+      Sie schützen Systeme und Daten vor unbefugtem Zugriff, Manipulation und Verlust.
+      In L6 haben Sie den Unterschied zwischen dem rechtlichen Schutz (Datenschutz) und dem
+      technischen Schutz gelernt.
+    </p>
+    <p class="c-question">Wie lautet der Oberbegriff für den <em>technischen</em> Schutz von Daten?</p>
+    <p style="font-size:11px;color:var(--dim);margin-bottom:14px;">Tipp: 15 Buchstaben &nbsp;·&nbsp; Gross-/Kleinschreibung egal</p>
+    <div class="pw-row" style="justify-content:flex-start;">
+      <input type="text" class="pw-in wide" id="r3-in" placeholder="_ _ _ _ _ _ _ _ _ _ _ _ _ _ _" onkeydown="if(event.key==='Enter')chkR3()">
+      <button class="pw-btn" onclick="chkR3()">→</button>
+    </div>
+    <p class="pw-err" id="r3-err">Nicht ganz — denken Sie an die Unterscheidung aus L6.</p>
+  </div>
+</div>
+
+<!-- ══════════ SUCCESS ══════════ -->
+<div id="s-win" class="screen">
+  <div class="success">
+    <div class="s-icon">🔓</div>
+    <div class="s-title">Escape geschafft!</div>
+    <p style="font-size:13px;color:var(--dim);margin-bottom:4px;">Das Losungswort lautet:</p>
+    <div class="s-word">DATENSICHERHEIT</div>
+    <p class="s-p">
+      Authentifizierung, Firewalls und Certificate Authorities sind technische Massnahmen
+      im Dienst eines Ziels: die Sicherheit unserer Daten.
+    </p>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+
+const R1 = [
+  {
+    label: 'Szenario A',
+    scenario: 'Sie öffnen Evento und tippen Ihre E-Mail-Adresse und Ihr Passwort ein.',
+    question: 'Was passiert im Hintergrund, wenn Sie auf «Anmelden» drücken?',
+    opts: [
+      { text: 'Eine Firewall analysiert die Datenpakete und entscheidet, ob sie durchkommen.',
+        ok: false,
+        fb: '✗ Eine Firewall filtert Pakete nach Regeln (z.B. Port, IP-Adresse) — sie fragt nicht nach Ihrer Identität. Hier geht es um etwas anderes.' },
+      { text: 'Das System prüft, wer Sie sind — es vergleicht Ihre Eingabe mit der Datenbank.',
+        ok: true,
+        fb: '✓ Genau. Das System prüft Ihre Identität. Das nennt man Authentifizierung.' }
+    ]
+  },
+  {
+    label: 'Szenario A — Vertiefung',
+    scenario: 'Evento hat Ihre Identität geprüft — mit Ihrer E-Mail-Adresse und Ihrem Passwort.',
+    question: 'Welchem Authentifizierungsfaktor entspricht ein Passwort?',
+    opts: [
+      { text: 'Wissen — etwas, das nur Sie kennen',
+        ok: true,
+        fb: '✓ Richtig. Ein Passwort ist Wissen: eine Information, die idealerweise nur Sie kennen.' },
+      { text: 'Besitz — etwas, das nur Sie haben',
+        ok: false,
+        fb: '✗ Besitz wäre ein physisches Objekt: Ihr Smartphone, eine Zugangskarte, eine SIM-Karte.' },
+      { text: 'Sein — etwas, das nur Sie sind',
+        ok: false,
+        fb: '✗ Sein bezieht sich auf körperliche Merkmale: Fingerabdruck, Gesichtserkennung, Stimme.' }
+    ]
+  },
+  {
+    label: 'Szenario B',
+    scenario: 'Das Schulnetz blockiert Netflix. Egal ob Sie eingeloggt sind oder nicht — die Seite lädt einfach nicht. Kein Passwort hilft hier weiter.',
+    question: 'Was ist für diese Sperrung verantwortlich?',
+    opts: [
+      { text: 'Authentifizierung: Das System prüft, ob Sie berechtigt sind, Netflix zu nutzen.',
+        ok: false,
+        fb: '✗ Authentifizierung würde nach Ihrer Identität fragen. Hier wird gar nicht geprüft, wer Sie sind — der Datenverkehr wird pauschal blockiert.' },
+      { text: 'Firewall: Regeln im Netzwerk filtern bestimmte Verbindungen heraus — unabhängig von Ihrer Identität.',
+        ok: true,
+        fb: '✓ Richtig. Eine Firewall blockiert nach Regeln (z.B. Ziel-IP, Port) — ohne zu wissen, wer Sie sind.' }
+    ]
+  }
+];
+
+// Correct letters in order: K, R, A, O, F, T → rearranged = FAKTOR
+const R2 = [
+  {
+    scenario: 'Sie entsperren Ihr iPhone per Face-ID, um die E-Banking-App zu öffnen.',
+    question: 'Welcher Authentifizierungsfaktor ist aktiv?',
+    opts: [
+      { text: 'Wissen — Sie tippen einen Code ein', letter: 'X', ok: false },
+      { text: 'Sein — Ihr Gesicht identifiziert Sie biometrisch', letter: 'K', ok: true },
+      { text: 'Besitz — Sie haben das Gerät bei sich', letter: 'Y', ok: false }
+    ]
+  },
+  {
+    scenario: 'Ihr Browser zeigt eine rote Warnung: «Das Zertifikat dieser Seite ist ungültig oder nicht vertrauenswürdig.»',
+    question: 'Wessen Identität kann hier nicht bestätigt werden?',
+    opts: [
+      { text: 'Ihre eigene Identität als Nutzerin / Nutzer', letter: 'Z', ok: false },
+      { text: 'Die Identität des Servers / der Website', letter: 'R', ok: true },
+      { text: 'Die Identität des zwischengeschalteten Routers', letter: 'W', ok: false }
+    ]
+  },
+  {
+    scenario: 'Im Schulnetz ist Port 443 (HTTPS) offen, aber Port 22 (SSH) ist gesperrt — für alle, unabhängig davon, wer sich verbinden will.',
+    question: 'Was kontrolliert hier den Zugang?',
+    opts: [
+      { text: 'Authentifizierung: Nur authorisierte Personen dürfen Port 22 nutzen', letter: 'V', ok: false },
+      { text: 'Firewall: Eine Regel blockt den Port unabhängig von der Identität', letter: 'A', ok: true },
+      { text: 'Ein Zertifikat einer CA gibt den Port frei', letter: 'U', ok: false }
+    ]
+  },
+  {
+    scenario: 'Ihr Smartphone verbindet sich automatisch mit dem Mobilfunknetz. Kein Passwort nötig — Ihre SIM-Karte übernimmt die Authentifizierung.',
+    question: 'Welcher Faktor steckt dahinter?',
+    opts: [
+      { text: 'Wissen — die SIM «kennt» eine geheime Nummer', letter: 'T', ok: false },
+      { text: 'Besitz — die SIM-Karte ist ein physisches Objekt', letter: 'O', ok: true },
+      { text: 'Sein — die SIM ist biometrisch kodiert', letter: 'S', ok: false }
+    ]
+  },
+  {
+    scenario: 'Sie geben auf einer Plattform Ihr Passwort ein. Dann erscheint: «Ein Code wurde an Ihr Smartphone gesendet.» Erst mit diesem Code kommen Sie rein.',
+    question: 'Welches Sicherheitsprinzip steckt dahinter?',
+    opts: [
+      { text: 'Zwei-Faktor-Authentifizierung: zwei verschiedene Faktoren kombiniert', letter: 'F', ok: true },
+      { text: 'Firewall: der eingehende Datenverkehr wird zusätzlich geprüft', letter: 'B', ok: false },
+      { text: 'Das System akzeptiert das Passwort erst beim zweiten Versuch', letter: 'C', ok: false }
+    ]
+  },
+  {
+    scenario: 'Evento fragt: E-Mail-Adresse + Passwort. Der Server vergleicht die Eingabe mit der Datenbank. Stimmt die Kombination, sind Sie eingeloggt.',
+    question: 'Welcher Authentifizierungsfaktor wird hier eingesetzt?',
+    opts: [
+      { text: 'Besitz — Ihr Gerät ist beim System registriert', letter: 'H', ok: false },
+      { text: 'Sein — das System erkennt Sie automatisch', letter: 'P', ok: false },
+      { text: 'Wissen — das Passwort ist eine Information, die nur Sie kennen', letter: 'T', ok: true }
+    ]
+  }
+];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let r1i = 0;
+let r2i = 0;
+let collected = [];
+
+// ══════════════════════════════════════════
+// SCREENS
+// ══════════════════════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ══════════════════════════════════════════
+// ROOM 1
+// ══════════════════════════════════════════
+function goR1() { r1i = 0; show('s-r1'); renderR1(); }
+
+function renderR1() {
+  const s = R1[r1i];
+  // dots
+  document.getElementById('r1-dots').innerHTML =
+    R1.map((_,i) => `<div class="dot ${i<r1i?'done':i===r1i?'now':''}"></div>`).join('');
+
+  document.getElementById('r1-body').innerHTML = `
+    <div class="card">
+      <div class="c-label">${s.label} &nbsp;·&nbsp; Schritt ${r1i+1} / ${R1.length}</div>
+      <p class="c-scenario">${s.scenario}</p>
+      <p class="c-question">${s.question}</p>
+      <div class="opts" id="r1-opts">
+        ${s.opts.map((o,i)=>`<button class="opt" onclick="pickR1(${i})">${o.text}</button>`).join('')}
+      </div>
+      <div class="fb" id="r1-fb"></div>
+      <button class="nxt" id="r1-nxt" onclick="nextR1()">
+        ${r1i===R1.length-1 ? 'Raum 1 abschliessen →' : 'Weiter →'}
+      </button>
+    </div>`;
+}
+
+function pickR1(i) {
+  const opt = R1[r1i].opts[i];
+  const btns = document.querySelectorAll('#r1-opts .opt');
+  const fb = document.getElementById('r1-fb');
+  btns.forEach(b => b.disabled = true);
+  btns[i].classList.add(opt.ok ? 'ok' : 'bad');
+  fb.textContent = opt.fb;
+  fb.className = `fb show ${opt.ok ? 'ok' : 'bad'}`;
+  if (opt.ok) {
+    document.getElementById('r1-nxt').classList.add('show');
+  } else {
+    setTimeout(() => {
+      btns.forEach(b => { b.disabled=false; b.className='opt'; });
+      fb.className = 'fb';
+    }, 2200);
+  }
+}
+
+function nextR1() {
+  r1i++;
+  if (r1i < R1.length) renderR1();
+  else show('s-g1');
+}
+
+// ══════════════════════════════════════════
+// GATE 1
+// ══════════════════════════════════════════
+function chkG1() {
+  const v = document.getElementById('g1-in').value.trim().toUpperCase();
+  const err = document.getElementById('g1-err');
+  if (v === 'WISSEN') { err.style.display='none'; initR2(); show('s-r2'); }
+  else err.style.display = 'block';
+}
+
+// ══════════════════════════════════════════
+// ROOM 2
+// ══════════════════════════════════════════
+function initR2() { r2i=0; collected=[]; renderLetters('r2-letters'); renderR2(); }
+
+function renderLetters(id) {
+  document.getElementById(id).innerHTML =
+    Array.from({length: R2.length}, (_,i) => {
+      const l = collected[i];
+      return `<div class="lbox ${l ? (i===collected.length-1?'new':'') : 'empty'}">${l||'?'}</div>`;
+    }).join('');
+}
+
+function renderR2() {
+  if (r2i >= R2.length) { finishR2(); return; }
+  const q = R2[r2i];
+  document.getElementById('r2-dots').innerHTML =
+    R2.map((_,i)=>`<div class="dot ${i<r2i?'done':i===r2i?'now':''}"></div>`).join('');
+
+  document.getElementById('r2-body').innerHTML = `
+    <div class="card">
+      <div class="c-label">Frage ${r2i+1} / ${R2.length}</div>
+      <p class="c-scenario">${q.scenario}</p>
+      <p class="c-question">${q.question}</p>
+      <div class="opts" id="r2-opts">
+        ${q.opts.map((o,i)=>`<button class="opt" onclick="pickR2(${i})">${o.text}</button>`).join('')}
+      </div>
+      <div class="fb" id="r2-fb"></div>
+      <button class="nxt" id="r2-nxt" onclick="nextR2()">
+        ${r2i===R2.length-1 ? 'Buchstaben auflösen →' : 'Nächste Frage →'}
+      </button>
+    </div>`;
+}
+
+function pickR2(i) {
+  const opt = R2[r2i].opts[i];
+  const rightOpt = R2[r2i].opts.find(o=>o.ok);
+  const btns = document.querySelectorAll('#r2-opts .opt');
+  const fb = document.getElementById('r2-fb');
+  btns.forEach(b => b.disabled=true);
+  btns[i].classList.add(opt.ok ? 'ok' : 'bad');
+  collected.push(opt.letter);
+  renderLetters('r2-letters');
+  const msg = opt.ok
+    ? `✓ Richtig! &nbsp;→&nbsp; Buchstabe «${opt.letter}» erhalten.`
+    : `✗ Leider nicht. Richtig wäre: «${rightOpt.text}». Trotzdem: Buchstabe «${opt.letter}» erhalten.`;
+  fb.innerHTML = msg;
+  fb.className = `fb show ${opt.ok ? 'ok' : 'bad'}`;
+  document.getElementById('r2-nxt').classList.add('show');
+}
+
+function nextR2() { r2i++; renderR2(); }
+
+function finishR2() {
+  document.getElementById('g2-letters').innerHTML =
+    collected.map(l=>`<div class="lbox">${l}</div>`).join('');
+  show('s-g2');
+}
+
+// ══════════════════════════════════════════
+// GATE 2
+// ══════════════════════════════════════════
+function chkG2() {
+  const v = document.getElementById('g2-in').value.trim().toUpperCase();
+  const err = document.getElementById('g2-err');
+  if (v === 'FAKTOR') { err.style.display='none'; show('s-r3'); }
+  else err.style.display='block';
+}
+
+// ══════════════════════════════════════════
+// ROOM 3
+// ══════════════════════════════════════════
+function chkR3() {
+  const v = document.getElementById('r3-in').value.trim().toUpperCase();
+  const err = document.getElementById('r3-err');
+  if (v === 'DATENSICHERHEIT') { err.style.display='none'; show('s-win'); }
+  else err.style.display='block';
+}
+</script>
+</body>
+</html>
