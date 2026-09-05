@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monster sortieren</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1f2430; --muted:#5b6270; --card:#f4f5f7; --border:#c9ccd3;
+    --accent:#3a6ea5; --accent-fg:#ffffff; --focus:#e08e2a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1b1e24; --fg:#eceef2; --muted:#a7acb8; --card:#262b33; --border:#3a3f4a;
+      --accent:#6fa8dc; --accent-fg:#0c1116; --focus:#ffb74d; }
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size:13px; padding:8px 10px; max-width:none;
+  }
+  .toolbar-top{ display:flex; align-items:center; gap:14px; margin-bottom:8px; flex-wrap:wrap; }
+  button.action{
+    padding:6px 14px; font-size:13px; border:1px solid var(--accent);
+    background:var(--accent); color:var(--accent-fg); border-radius:6px; cursor:pointer;
+  }
+  button:focus-visible, select:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+  .axis-pick{ display:flex; align-items:center; gap:6px; font-size:12.5px; }
+  .axis-pick select{
+    font-size:12.5px; padding:4px 6px; border:1px solid var(--border);
+    border-radius:5px; background:var(--card); color:var(--fg); max-width:150px;
+  }
+  .plot-wrap{
+    border:1px solid var(--border); border-radius:8px; background:var(--card);
+    overflow:hidden; touch-action:none;
+  }
+  .monster{ cursor:grab; }
+  .monster:active{ cursor:grabbing; }
+</style>
+</head>
+<body>
+
+  <div class="toolbar-top">
+    <button class="action" id="shuffleBtn" type="button">Neu mischen</button>
+    <label class="axis-pick">X-Achse:
+      <select id="xSelect"></select>
+    </label>
+    <label class="axis-pick">Y-Achse:
+      <select id="ySelect"></select>
+    </label>
+  </div>
+
+  <div class="plot-wrap">
+    <svg id="plotSvg" viewBox="0 0 760 380" width="100%" height="380"
+         aria-label="Zeichenfläche: Monster per Ziehen auf dem Raster einordnen"></svg>
+  </div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------------------------------------------------------
+   Monster-Daten
+--------------------------------------------------------- */
+const MONSTERS = [
+  {name:"Zappo",  eyes:2, teeth:3, arms:2, feet:2, color:"Lila",   horn:"keine"},
+  {name:"Grumbl", eyes:3, teeth:4, arms:4, feet:3, color:"Pink",   horn:"spitz-kurz"},
+  {name:"Flix",   eyes:1, teeth:2, arms:2, feet:2, color:"Türkis", horn:"keine"},
+  {name:"Mumpf",  eyes:4, teeth:4, arms:4, feet:4, color:"Orange", horn:"spitz-lang"},
+  {name:"Krawu",  eyes:4, teeth:2, arms:3, feet:4, color:"Mint",   horn:"gebogen-lang"},
+  {name:"Nox",    eyes:2, teeth:3, arms:3, feet:2, color:"Rot",    horn:"gebogen-kurz"},
+  {name:"Pim",    eyes:2, teeth:2, arms:2, feet:3, color:"Blau",   horn:"keine"},
+  {name:"Gurx",   eyes:1, teeth:1, arms:2, feet:2, color:"Lila",   horn:"keine"},
+  {name:"Wobbi",  eyes:3, teeth:4, arms:3, feet:2, color:"Pink",   horn:"spitz-kurz"},
+  {name:"Kratz",  eyes:4, teeth:2, arms:4, feet:4, color:"Türkis", horn:"gebogen-lang"},
+  {name:"Snarp",  eyes:4, teeth:1, arms:3, feet:3, color:"Mint",   horn:"keine"},
+  {name:"Tork",   eyes:3, teeth:3, arms:4, feet:4, color:"Rot",    horn:"spitz-kurz"},
+  {name:"Quix",   eyes:1, teeth:3, arms:3, feet:2, color:"Blau",   horn:"spitz-kurz"},
+  {name:"Zing",   eyes:2, teeth:2, arms:2, feet:3, color:"Pink",   horn:"keine"}
+];
+
+const COLOR_HEX = {
+  Lila:   {main:"#8B7AB8", accent:"#6B5A98"},
+  Pink:   {main:"#FF6B9D", accent:"#E5527D"},
+  Türkis: {main:"#4ECDC4", accent:"#3EADA4"},
+  Orange: {main:"#FFA07A", accent:"#E88060"},
+  Mint:   {main:"#95E1D3", accent:"#75C1B3"},
+  Gelb:   {main:"#F39C12", accent:"#D38312"},
+  Rot:    {main:"#E74C3C", accent:"#C73C2C"},
+  Blau:   {main:"#3498DB", accent:"#2878BB"}
+};
+
+/* Achsen-Features: je 2-7 "Buckets" (Spalten/Reihen im Raster) */
+const COLOR_CATS = Array.from(new Set(MONSTERS.map(function(m){ return m.color; }))).sort();
+const AXIS_FEATURES = [
+  {key:"eyes",  label:"Anzahl Augen",  cats:["1","2","3","4"]},
+  {key:"teeth", label:"Anzahl Zähne",  cats:["1","2","3","4"]},
+  {key:"arms",  label:"Anzahl Arme",   cats:["1","2","3","4"]},
+  {key:"feet",  label:"Anzahl Füsse",  cats:["1","2","3","4"]},
+  {key:"horn",  label:"Hörner",        cats:["nein","ja"]},
+  {key:"color", label:"Farbe",         cats:COLOR_CATS}
+];
+function featureByKey(k){ return AXIS_FEATURES.find(function(f){ return f.key===k; }); }
+
+/* ---------------------------------------------------------
+   SVG-Hilfsfunktionen
+--------------------------------------------------------- */
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs){
+  const n = document.createElementNS(SVGNS, tag);
+  for(const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+}
+const DARK = "#2C3E50";
+const svg = document.getElementById("plotSvg");
+const gridLayer = el("g", {id:"gridLayer"});
+const monsterLayer = el("g", {id:"monsterLayer"});
+svg.appendChild(gridLayer);
+svg.appendChild(monsterLayer);
+
+/* Layout-Konstanten (SVG-Koordinaten) */
+const W = 760, H = 380;
+const TOP = 16;
+const BOTTOM = 40;   // X-Achse: Ticks + Titel
+const LEFT = 54;      // Y-Achse: Ticks + Titel
+const RIGHT = 14;
+
+/* ---------------------------------------------------------
+   Monster als SVG zeichnen (rein aus Feature-Werten)
+--------------------------------------------------------- */
+function buildMonsterGroup(m, scale){
+  const outer = el("g", {});
+  const g = el("g", {transform:"scale("+scale+") translate(-60,-70)"});
+  outer.appendChild(g);
+  const c = COLOR_HEX[m.color] || {main:"#999", accent:"#777"};
+
+  g.appendChild(el("ellipse", {cx:60, cy:80, rx:45, ry:48, fill:c.main, stroke:DARK, "stroke-width":3}));
+
+  const nArms = m.arms;
+  for(let i=0;i<nArms;i++){
+    const isLeft = i < Math.ceil(nArms/2);
+    const position = isLeft ? i : i - Math.ceil(nArms/2);
+    const x = isLeft ? 18 - position*4 : 102 + position*4;
+    const y = 70 + position*15;
+    g.appendChild(el("ellipse", {cx:x, cy:y, rx:12, ry:20, fill:c.main, stroke:DARK, "stroke-width":2.5}));
+    const dx = isLeft ? 4 : -4;
+    g.appendChild(el("circle", {cx:x-dx, cy:y+15, r:3, fill:c.accent}));
+    g.appendChild(el("circle", {cx:x+(isLeft?1:-1), cy:y+18, r:3, fill:c.accent}));
+    g.appendChild(el("circle", {cx:x+(isLeft?5:-5), cy:y+15, r:3, fill:c.accent}));
+  }
+
+  const hornPaths = {
+    "spitz-kurz": ["M 35 32 L 28 18 L 38 28 Z", "M 85 32 L 92 18 L 82 28 Z"],
+    "spitz-lang": ["M 35 32 L 26 8 L 38 25 Z", "M 85 32 L 94 8 L 82 25 Z"],
+    "gebogen-kurz": ["M 35 32 Q 22 24 25 15 Q 28 20 38 28 Z", "M 85 32 Q 98 24 95 15 Q 92 20 82 28 Z"],
+    "gebogen-lang": ["M 35 32 Q 15 28 18 8 Q 23 16 38 26 Z", "M 85 32 Q 105 28 102 8 Q 97 16 82 26 Z"]
+  };
+  if(hornPaths[m.horn]){
+    hornPaths[m.horn].forEach(function(d){
+      g.appendChild(el("path", {d:d, fill:"#F4A460", stroke:DARK, "stroke-width":2.5}));
+    });
+  }
+
+  const eyeLayouts = {
+    1: [{cx:60, cy:58, r:13}],
+    2: [{cx:42, cy:58, r:13}, {cx:78, cy:58, r:13}],
+    3: [{cx:35, cy:58, r:11}, {cx:60, cy:54, r:11}, {cx:85, cy:58, r:11}],
+    4: [{cx:32, cy:58, r:10}, {cx:50, cy:58, r:10}, {cx:70, cy:58, r:10}, {cx:88, cy:58, r:10}]
+  };
+  (eyeLayouts[m.eyes] || eyeLayouts[2]).forEach(function(e){
+    g.appendChild(el("circle", {cx:e.cx, cy:e.cy, r:e.r, fill:"#fff", stroke:DARK, "stroke-width":3}));
+    g.appendChild(el("circle", {cx:e.cx, cy:e.cy, r:e.r*0.54, fill:DARK}));
+    g.appendChild(el("circle", {cx:e.cx+2, cy:e.cy-2, r:e.r*0.23, fill:"#fff"}));
+  });
+
+  g.appendChild(el("path", {d:"M 35 85 Q 60 98 85 85", fill:DARK, stroke:DARK, "stroke-width":2.5}));
+
+  const teethLayouts = {
+    1: [57], 2: [48, 66], 3: [42, 57, 72], 4: [38, 50, 64, 76]
+  };
+  (teethLayouts[m.teeth] || teethLayouts[2]).forEach(function(x){
+    g.appendChild(el("rect", {x:x, y:85, width:6, height:9, fill:"#fff", stroke:DARK, "stroke-width":1}));
+  });
+
+  const feetLayouts = {
+    1: [{cx:60, rx:14, ry:10}],
+    2: [{cx:45, rx:14, ry:10}, {cx:75, rx:14, ry:10}],
+    3: [{cx:38, rx:12, ry:9}, {cx:60, rx:12, ry:9}, {cx:82, rx:12, ry:9}],
+    4: [{cx:34, rx:11, ry:8}, {cx:50, rx:11, ry:8}, {cx:70, rx:11, ry:8}, {cx:86, rx:11, ry:8}]
+  };
+  (feetLayouts[m.feet] || feetLayouts[2]).forEach(function(f){
+    g.appendChild(el("ellipse", {cx:f.cx, cy:125, rx:f.rx, ry:f.ry, fill:c.main, stroke:DARK, "stroke-width":2.5}));
+  });
+
+  return outer;
+}
+
+/* ---------------------------------------------------------
+   Koordinaten-Hilfsfunktion: Client -> SVG-viewBox
+--------------------------------------------------------- */
+function clientToSvg(ev){
+  const rect = svg.getBoundingClientRect();
+  const scaleX = W/rect.width, scaleY = H/rect.height;
+  return { x:(ev.clientX-rect.left)*scaleX, y:(ev.clientY-rect.top)*scaleY };
+}
+
+/* ---------------------------------------------------------
+   Generischer Drag-Helfer: Events am window (robust)
+--------------------------------------------------------- */
+function makeDraggable(g, onStart, onMove, onEnd){
+  g.addEventListener("pointerdown", function(ev){
+    ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const startP = clientToSvg(ev);
+    const ctx = onStart(startP) || {};
+    function move(e){ onMove(clientToSvg(e), ctx); }
+    function up(e){
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if(onEnd) onEnd(clientToSvg(e), ctx);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  });
+}
+
+/* ---------------------------------------------------------
+   Monster: frei verschiebbar
+--------------------------------------------------------- */
+const HAND_SCALE = 0.4;
+function placeMonsters(){
+  Array.from(monsterLayer.children).forEach(function(n){ n.remove(); });
+  const margin = 32;
+  const placed = [];
+  MONSTERS.forEach(function(m){
+    let x, y, tries = 0;
+    do{
+      x = LEFT + margin + Math.random()*(W-RIGHT-LEFT-margin*2);
+      y = TOP + margin*0.6 + Math.random()*(H-BOTTOM-TOP-margin*1.2);
+      tries++;
+    } while(tries < 40 && placed.some(function(p){ return Math.hypot(p.x-x, p.y-y) < 56; }));
+    placed.push({x:x,y:y});
+    const g = el("g", {class:"monster", transform:"translate("+x+","+y+")", tabindex:"0"});
+    g.appendChild(buildMonsterGroup(m, HAND_SCALE));
+    g.dataset.x = x; g.dataset.y = y;
+    monsterLayer.appendChild(g);
+    attachMonsterDrag(g);
+  });
+}
+
+function attachMonsterDrag(g){
+  makeDraggable(g,
+    function(p){ return { offX:p.x-parseFloat(g.dataset.x), offY:p.y-parseFloat(g.dataset.y) }; },
+    function(p, ctx){
+      let x = Math.max(LEFT+6, Math.min(W-RIGHT-6, p.x-ctx.offX));
+      let y = Math.max(TOP+6, Math.min(H-BOTTOM-6, p.y-ctx.offY));
+      g.setAttribute("transform", "translate("+x+","+y+")");
+      g.dataset.x = x; g.dataset.y = y;
+    },
+    null
+  );
+}
+
+document.getElementById("shuffleBtn").addEventListener("click", placeMonsters);
+
+/* ---------------------------------------------------------
+   Achsen-Auswahl per Dropdown
+--------------------------------------------------------- */
+let xAxisKey = "", yAxisKey = "";
+const xSelect = document.getElementById("xSelect");
+const ySelect = document.getElementById("ySelect");
+
+function fillSelect(sel, currentKey, otherKey){
+  sel.innerHTML = "";
+  const optNone = document.createElement("option");
+  optNone.value = ""; optNone.textContent = "– wählen –";
+  sel.appendChild(optNone);
+  AXIS_FEATURES.forEach(function(f){
+    const o = document.createElement("option");
+    o.value = f.key; o.textContent = f.label;
+    if(f.key===otherKey) o.disabled = true;
+    sel.appendChild(o);
+  });
+  sel.value = currentKey;
+}
+function syncSelects(){
+  fillSelect(xSelect, xAxisKey, yAxisKey);
+  fillSelect(ySelect, yAxisKey, xAxisKey);
+}
+xSelect.addEventListener("change", function(){ xAxisKey = xSelect.value; syncSelects(); render(); });
+ySelect.addEventListener("change", function(){ yAxisKey = ySelect.value; syncSelects(); render(); });
+
+/* ---------------------------------------------------------
+   Rendern: Rasterlinien + Beschriftungen
+--------------------------------------------------------- */
+function render(){
+  Array.from(gridLayer.children).forEach(function(n){ n.remove(); });
+
+  gridLayer.appendChild(el("rect", {
+    x:LEFT, y:TOP, width:W-RIGHT-LEFT, height:H-BOTTOM-TOP,
+    fill:"none", stroke:"var(--border)"
+  }));
+
+  const plotW = W-RIGHT-LEFT, plotH = H-BOTTOM-TOP;
+
+  if(xAxisKey){
+    const f = featureByKey(xAxisKey);
+    const n = f.cats.length;
+    for(let i=1;i<n;i++){
+      const gx = LEFT + plotW*i/n;
+      gridLayer.appendChild(el("line", {x1:gx, y1:TOP, x2:gx, y2:H-BOTTOM, stroke:"var(--border)", "stroke-dasharray":"3,3"}));
+    }
+    for(let i=0;i<n;i++){
+      const cx = LEFT + plotW*(i+0.5)/n;
+      const t = el("text", {x:cx, y:H-BOTTOM+14, "text-anchor":"middle", "font-size":"11", fill:"var(--muted)"});
+      t.textContent = f.cats[i];
+      gridLayer.appendChild(t);
+    }
+    const title = el("text", {x:LEFT+plotW/2, y:H-8, "text-anchor":"middle", "font-size":"12", fill:"var(--fg)"});
+    title.textContent = f.label;
+    gridLayer.appendChild(title);
+  } else {
+    const t = el("text", {x:LEFT+plotW/2, y:H-BOTTOM+ (BOTTOM/2)+4, "text-anchor":"middle", "font-size":"11", fill:"var(--muted)"});
+    t.textContent = "X-Achse oben wählen";
+    gridLayer.appendChild(t);
+  }
+
+  if(yAxisKey){
+    const f = featureByKey(yAxisKey);
+    const n = f.cats.length;
+    for(let i=1;i<n;i++){
+      const gy = TOP + plotH*i/n;
+      gridLayer.appendChild(el("line", {x1:LEFT, y1:gy, x2:W-RIGHT, y2:gy, stroke:"var(--border)", "stroke-dasharray":"3,3"}));
+    }
+    for(let i=0;i<n;i++){
+      const cy = H-BOTTOM - plotH*(i+0.5)/n;
+      const t = el("text", {x:LEFT-8, y:cy+3, "text-anchor":"end", "font-size":"10.5", fill:"var(--muted)"});
+      t.textContent = f.cats[i];
+      gridLayer.appendChild(t);
+    }
+    const title = el("text", {x:16, y:TOP+plotH/2, "text-anchor":"middle", "font-size":"12", fill:"var(--fg)",
+      transform:"rotate(-90 16 "+(TOP+plotH/2)+")"});
+    title.textContent = f.label;
+    gridLayer.appendChild(title);
+  } else {
+    const t = el("text", {x:16, y:TOP+plotH/2, "text-anchor":"middle", "font-size":"10.5", fill:"var(--muted)",
+      transform:"rotate(-90 16 "+(TOP+plotH/2)+")"});
+    t.textContent = "Y-Achse oben wählen";
+    gridLayer.appendChild(t);
+  }
+}
+
+/* Start */
+syncSelects();
+render();
+placeMonsters();
+})();
+</script>
+</body>
+</html>
