@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ELIZA: ein Chatbot ohne Verstand</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f24; --muted:#5a6472;
+  --line:#d7dce3; --accent:#2f6fb0; --accent-soft:#e3eefb;
+  --warn-bg:#fdf6e3; --warn-line:#e8d9a8;
+  --user:#e3eefb; --bot:#eef1f5; --focus:#c8651a;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#15181c; --panel:#1d2126; --ink:#e8ebef; --muted:#9aa5b1;
+    --line:#333a43; --accent:#6ea8e0; --accent-soft:#24354a;
+    --warn-bg:#2a2619; --warn-line:#4d4428;
+    --user:#24354a; --bot:#262b31; --focus:#e8923d;
+  }
+}
+*{box-sizing:border-box}
+html{height:100%}
+body{
+  margin:0; height:100dvh; min-height:520px; overflow:hidden;
+  background:var(--bg); color:var(--ink);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:10px;
+}
+.wrap{
+  display:grid; grid-template-columns:minmax(380px,1fr) 400px;
+  gap:10px; height:100%; max-width:1280px; margin:0;
+}
+.col{display:grid; gap:10px; min-height:0}
+.col.links{grid-template-rows:1fr auto}
+.col.rechts{grid-template-rows:1fr}
+.card{
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:8px; padding:11px; min-height:0;
+  display:flex; flex-direction:column;
+}
+.card h2{font-size:12.5px; margin:0 0 7px; text-transform:uppercase;
+  letter-spacing:.04em; color:var(--muted); font-weight:600}
+
+/* Chat */
+#verlauf{
+  flex:1; min-height:0; overflow-y:auto;
+  display:flex; flex-direction:column; gap:7px; padding-right:4px;
+}
+.msg{max-width:84%; padding:7px 10px; border-radius:10px}
+.msg.bot{background:var(--bot); align-self:flex-start; border-bottom-left-radius:3px}
+.msg.user{background:var(--user); align-self:flex-end; border-bottom-right-radius:3px}
+.msg .who{display:block; font-size:11px; color:var(--muted); margin-bottom:2px}
+.eingabe{display:flex; gap:8px; margin-top:9px}
+input[type=text]{
+  flex:1; padding:8px 10px; border:1px solid var(--line); border-radius:6px;
+  background:var(--bg); color:var(--ink); font:inherit;
+}
+button{
+  padding:8px 14px; border:1px solid var(--accent); border-radius:6px;
+  background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer;
+}
+button[disabled]{opacity:.5; cursor:default}
+:focus-visible{outline:3px solid var(--focus); outline-offset:2px}
+
+/* Infobox */
+.info{background:var(--warn-bg); border-color:var(--warn-line); font-size:13px}
+.info p{margin:0 0 6px}
+.info p:last-child{margin:0}
+.info b{color:var(--ink)}
+
+/* Diagramm */
+svg{width:100%; height:auto; display:block; flex:0 0 auto}
+.node rect{fill:var(--bg); stroke:var(--line); stroke-width:1.5; rx:6}
+.node text{fill:var(--ink); font-size:13px; text-anchor:middle}
+.node.on rect{fill:var(--accent-soft); stroke:var(--accent); stroke-width:2.5}
+.node.dim{opacity:.35}
+.edge{stroke:var(--line); stroke-width:1.8; fill:none; marker-end:url(#pfeil)}
+.edge.on{stroke:var(--accent); stroke-width:2.5; marker-end:url(#pfeilAn)}
+.lab{font-size:11.5px; fill:var(--muted); text-anchor:middle;
+  stroke:var(--panel); stroke-width:4; paint-order:stroke}
+#protokoll{
+  margin-top:9px; border-top:1px solid var(--line); padding-top:8px;
+  font-size:12.5px; flex:1; min-height:0; overflow-y:auto;
+}
+#protokoll div{margin-bottom:4px; color:var(--muted)}
+#protokoll b{color:var(--ink); font-weight:600}
+code{background:var(--bg); border:1px solid var(--line); border-radius:3px;
+  padding:0 4px; font-size:12px}
+.klick{cursor:pointer}
+.klick text{fill:var(--accent); text-decoration:underline}
+.klick:hover rect{stroke:var(--accent)}
+
+/* Unterseiten */
+.seite{
+  display:none; position:fixed; inset:0; z-index:10;
+  background:var(--bg); overflow-y:auto; padding:18px 22px 30px;
+}
+.seite:target{display:block}
+.seite h1{font-size:20px; margin:0 0 4px}
+.seite .lead{color:var(--muted); max-width:70ch; margin:0 0 4px}
+.seite .back{display:inline-block; margin-bottom:14px; color:var(--accent);
+  font-size:13px; text-decoration:none}
+.seite .back:hover{text-decoration:underline}
+.seite h3{font-size:13px; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--muted); margin:22px 0 8px}
+.gitter{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:8px}
+.karte{background:var(--panel); border:1px solid var(--line); border-radius:7px;
+  padding:8px 10px; font-size:13px}
+.karte .kopf{font-weight:600; color:var(--accent); margin-bottom:2px}
+.karte .nr{color:var(--muted); font-weight:400; font-size:12px}
+.karte .inhalt{color:var(--muted); line-height:1.4}
+.karte .frage{display:block; margin-top:2px}
+
+@media (max-width:1000px){
+  body{height:auto; overflow:auto}
+  .wrap{grid-template-columns:1fr; height:auto}
+  .col.links{grid-template-rows:auto auto}
+  #verlauf{height:280px; flex:none}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="col links">
+    <section class="card">
+      <h2>Gespräch</h2>
+      <div id="verlauf" aria-live="polite"></div>
+      <form class="eingabe" id="form">
+        <label for="feld" style="position:absolute;left:-9999px">Ihre Nachricht</label>
+        <input type="text" id="feld" autocomplete="off" placeholder="Schreiben Sie etwas…">
+        <button id="senden">Senden</button>
+      </form>
+    </section>
+
+    <section class="card info">
+      <h2>Was hier wirklich passiert</h2>
+      <p><b>Keine künstliche Intelligenz.</b> ELIZA versteht kein Wort. Das Programm ersetzt
+      zuerst Synonyme durch Oberbegriffe (<code>Tennis</code> wird zu <code>Sport</code>), sucht
+      dann in einer Liste von 26 Stichwörtern das erste, das passt, und gibt eine dazu fertig
+      hinterlegte Frage aus. Findet es nichts, kommt eine allgemeine Nachfrage.</p>
+      <p><b>Datenschutz.</b> Der gesamte Code läuft in Ihrem Browser auf Ihrem Gerät. Ihre
+      Eingaben werden nicht gesendet, nicht gespeichert und von niemandem gelesen; beim Schliessen
+      des Fensters ist alles weg. Bei ChatGPT und ähnlichen Diensten geht jede Eingabe an einen
+      fremden Server.</p>
+    </section>
+  </div>
+
+  <div class="col rechts">
+    <section class="card">
+      <h2>Ablauf des Programms &middot; blaue Felder anklicken</h2>
+      <svg viewBox="0 0 400 414" role="img" aria-label="Flussdiagramm des ELIZA-Programms">
+        <defs>
+          <marker id="pfeil" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+          </marker>
+          <marker id="pfeilAn" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <path class="edge" id="e1" d="M200,46 V64"/>
+        <path class="edge" id="e2" d="M200,106 V124"/>
+        <path class="edge" id="e3" d="M200,166 V184"/>
+        <path class="edge" id="e4a" d="M200,236 V258 H105 V272"/>
+        <path class="edge" id="e4b" d="M200,236 V258 H295 V272"/>
+        <path class="edge" id="e5a" d="M105,328 V348 H200 V352"/>
+        <path class="edge" id="e5b" d="M295,328 V348 H200 V352"/>
+        <path class="edge" id="e6" d="M200,394 V406 H20 V26 H106" stroke-dasharray="5 4"/>
+        <text class="lab" x="142" y="254">Treffer</text>
+        <text class="lab" x="264" y="254">kein Treffer</text>
+        <text class="lab" x="14" y="215" transform="rotate(-90 14 215)">nächste Eingabe</text>
+
+        <g class="node" id="n1"><rect x="110" y="8" width="180" height="38"/>
+          <text x="200" y="32">Eingabe der Person</text></g>
+        <g class="node" id="n2"><rect x="110" y="68" width="180" height="38"/>
+          <text x="200" y="92">alles kleinschreiben</text></g>
+        <a href="#synonyme" class="klick"><g class="node" id="n3">
+          <rect x="110" y="128" width="180" height="38"/>
+          <text x="200" y="152">Synonyme ersetzen</text></g></a>
+        <a href="#stichwoerter" class="klick"><g class="node" id="n4">
+          <rect x="110" y="188" width="180" height="48"/>
+          <text x="200" y="208">Stichwortliste durchgehen,</text>
+          <text x="200" y="225">erster Treffer gewinnt</text></g></a>
+        <g class="node" id="n5a"><rect x="15" y="276" width="180" height="52"/>
+          <text x="105" y="296">zufällige Frage aus</text>
+          <text x="105" y="313">diesem Stichwort</text></g>
+        <g class="node" id="n5b"><rect x="205" y="276" width="180" height="52"/>
+          <text x="295" y="296">zufällige allgemeine</text>
+          <text x="295" y="313">Nachfrage</text></g>
+        <g class="node" id="n6"><rect x="110" y="356" width="180" height="38"/>
+          <text x="200" y="380">Antwort ausgeben</text></g>
+      </svg>
+      <div id="protokoll"></div>
+    </section>
+  </div>
+
+</div>
+
+<section class="seite" id="synonyme">
+  <a class="back" href="#">&larr; zurück zum Gespräch (oder Zurück-Taste des Browsers)</a>
+  <h1>Schritt 2: Synonyme ersetzen</h1>
+  <p class="lead">Bevor ELIZA sucht, tauscht das Programm jedes Wort rechts gegen den
+  Oberbegriff links. Aus <code>Tennis</code> wird <code>Sport</code>, aus <code>Mutter</code>
+  wird <code>Familie</code>. So kommt ELIZA mit wenigen Stichwörtern aus.</p>
+  <div class="gitter" id="g-synonyme"></div>
+</section>
+
+<section class="seite" id="stichwoerter">
+  <a class="back" href="#">&larr; zurück zum Gespräch (oder Zurück-Taste des Browsers)</a>
+  <h1>Schritt 3: die Stichwortliste</h1>
+  <p class="lead">ELIZA geht diese Liste von oben nach unten durch und nimmt das erste
+  Stichwort, das im Satz vorkommt. Danach bricht die Suche ab: Was weiter unten steht, wird
+  gar nicht mehr geprüft. Zum gefundenen Stichwort gibt es ein paar fertige Fragen, davon
+  wird eine zufällig gewählt.</p>
+  <div class="gitter" id="g-stichwoerter"></div>
+  <h3>Wenn kein Stichwort passt</h3>
+  <p class="lead">Dann wählt ELIZA eine dieser allgemeinen Nachfragen, die zu allem passen.</p>
+  <div class="gitter" id="g-allgemein"></div>
+</section>
+
+<script>
+"use strict";
+
+/* ---------- Daten (aus ELIZAdata.py übernommen) ---------- */
+
+const begruessungen = [
+  "Wie geht es Ihnen? Bitte erzählen Sie mir von Ihrem heutigen Tag.",
+  "Bitte erzählen Sie mir, was Sie beschäftigt.",
+  "Gibt es etwas, das Sie beunruhigt?",
+  "Guten Tag! Gibt es etwas Neues in Ihrem Leben, über das Sie sprechen möchten?",
+  "Hallo! Gibt es etwas, das Ihnen Sorgen bereitet, über das Sie reden möchten?",
+  "Hi! Wie fühlen Sie sich heute in Bezug auf Ihre Zukunft und Ziele?"
+];
+
+const weiterfragen = [
+  "Das ist interessant. Bitte erzählen Sie mir mehr.",
+  "Können Sie das näher erläutern?",
+  "Wie fühlen Sie sich dabei?",
+  "Könnten Sie das genauer erklären?",
+  "Was meinen Sie genau damit?",
+  "Haben Sie dazu eine bestimmte Meinung?",
+  "Wie kam es dazu?",
+  "Gibt es noch etwas dazu, das Sie erwähnen möchten?",
+  "Wie hat das Ihre Sichtweise beeinflusst?"
+];
+
+const preTransforms = [
+  ["kann nicht", ["unfähig","nicht in der Lage","unmöglich","nicht machbar","kann nichts","kann nichts tun"]],
+  ["wunsch", ["will","brauche","wünsche","möchte","begehre","ersehne","hoffe auf","verlangen","anliegen"]],
+  ["jeder", ["niemand","keiner","alle","jedermann","jede","jedes","alle menschen","jeder mensch"]],
+  ["familie", ["mutter","mama","vater","papa","schwester","bruder","frau","kinder","kind","eltern","grosseltern","onkel","tante","cousin","cousine","verwandtschaft","sippe"]],
+  ["glücklich", ["erfreut","froh","besser","zufrieden","glückselig","fröhlich","heiter","vergnügt","in guter stimmung","freudig"]],
+  ["traurig", ["unglücklich","deprimiert","krank","niedergeschlagen","bedrückt","melancholisch","trauernd","verstimmt","voller trauer","betrübt"]],
+  ["freunde", ["freund","freundin","kumpel","kamerad","bekannte","bekannter","kollege","kollegin","gesellschaft","soziales umfeld"]],
+  ["sport", ["fussball","basketball","tennis","schwimmen","laufen","fitness","gymnastik","volleyball","körperliche aktivität","training"]],
+  ["musik", ["lied","song","melodie","klang","ton","musikstück","komposition","symphonie","klänge","audio"]],
+  ["ferien", ["urlaub","reise","ausflug","pause","erholung","freizeit","abenteuer","trip","reisen","urlaub machen"]],
+  ["zukunft", ["ausblick","perspektive","vorhaben","plan","ziel","erwartung","vision","traum","kommende zeit"]],
+  ["handy", ["smartphone","telefon","mobiltelefon","iphone","android","gadget","device","apparat","mobiles gerät","kommunikationsmittel"]],
+  ["bern", ["hauptstadt","stadt","metropole","ort","gemeinde","region","kanton","bundesstadt","stadt bern","bundeshauptstadt"]],
+  ["verabschiedung", ["tschüss","auf wiedersehen","bye","ciao","ade","adios","adieu"]],
+  ["schule", ["unterricht","lehrer","schüler","prüfung","noten","lehrerin","fächer","lernen","hausaufgaben","test","stress","schulzeit"]],
+  ["studium", ["universität","studieren","studium","studienrichtung","vorlesung","professor","student","studentin","studiengebühren","hochschule","akademisches studium"]],
+  ["hobbies", ["hobby","interessen","freizeitaktivitäten","verein","club","sportverein","musikinstrument","kunst","lesen","freizeitbeschäftigung"]],
+  ["beziehungen", ["beziehung","freundschaft","liebe","partner","partnerin","streit","versöhnung","kennenlernen","dating","zwischenmenschliche beziehungen"]],
+  ["medien", ["internet","soziale medien","fernsehen","nachrichten","smartphone-apps","videos","streaming","digitale medien","kommunikationsmedien"]],
+  ["künstliche intelligenz", ["ki","künstliche intelligenz","maschinelles lernen","neuronale netzwerke","roboter","automatisierung","ki-technologien","chatgpt","chat gpt","gpt","sprachmodell","chatbot","alexa","siri","copilot"]],
+  ["big data", ["big data","datenanalyse","datenschutz","datensicherheit","datenvisualisierung","grosse datenmengen","datenverarbeitung"]],
+  ["internet", ["online","web","website","surfing","browser","online-shopping","social media","netzwerken","internetnutzung"]]
+];
+
+const schluesselwoerter = [
+  ["unzufrieden", ["Warum sind Sie unzufrieden?","Was hat Sie unzufrieden gemacht?"]],
+  ["glücklich", ["Was hat Sie heute glücklich gemacht?","Was macht Sie normalerweise glücklich?"]],
+  ["traurig", ["Warum sind Sie traurig?","Was könnte Ihnen helfen, sich besser zu fühlen?"]],
+  ["computer", ["Was denken Sie über Computer?","Glauben Sie, dass Computer bei Ihrem Problem helfen können?"]],
+  ["familie", ["Erzählen Sie mir mehr über Ihre Familie.","Wer in Ihrer Familie macht Sie glücklich?"]],
+  ["schule", ["Wie läuft es in der Schule?","Gibt es Probleme in der Schule, die Sie belasten?"]],
+  ["freunde", ["Wie geht es Ihren Freunden?","Was machen Sie normalerweise mit Ihren Freunden?"]],
+  ["sport", ["Welchen Sport mögen Sie?","Spielen Sie in einem Sportverein?"]],
+  ["musik", ["Welche Musik hören Sie gerne?","Spielen Sie ein Musikinstrument?"]],
+  ["ferien", ["Haben Sie Pläne für die nächsten Ferien?","Was ist Ihr Lieblingsferienziel?"]],
+  ["zukunft", ["Was möchten Sie nach dem Gymnasium machen?","Haben Sie Pläne für Ihre Zukunft?"]],
+  ["handy", ["Wie oft nutzen Sie Ihr Handy?","Denken Sie, dass Handys einen grossen Einfluss auf Ihr Leben haben?"]],
+  ["bern", ["Was mögen Sie an Bern am meisten?","Gibt es Lieblingsorte in Bern, die Sie oft besuchen?"]],
+  ["verabschiedung", ["Auf Wiedersehen. Es war nett, mit Ihnen zu sprechen.","Auf Wiedersehen. Dies war wirklich ein nettes Gespräch.","Auf Wiedersehen. Ich freue mich auf unsere nächste Sitzung.","Das war eine gute Sitzung, nicht wahr? Aber jetzt ist die Zeit vorbei. Auf Wiedersehen."]],
+  ["kann nicht", ["Warum denken Sie, dass Sie es nicht können?","Was hindert Sie daran?"]],
+  ["wunsch", ["Was wünschen Sie sich?","Welche Schritte unternehmen Sie, um Ihren Wunsch zu erfüllen?"]],
+  ["sein", ["Wie fühlen Sie sich in Ihrer aktuellen Situation?","Was denken Sie über Ihr Leben im Moment?"]],
+  ["jeder", ["Denken Sie, dass jeder das gleiche fühlt?","Gibt es etwas, worin sich jeder einig ist?"]],
+  ["glaube", ["Worüber denken Sie nach?","Welche Überzeugungen haben Sie?"]],
+  ["studium", ["Wie läuft Ihr Studium?","Welche Studienrichtung interessiert Sie?"]],
+  ["hobbies", ["Was sind Ihre Hobbys?","Was machen Sie in Ihrer Freizeit gerne?"]],
+  ["beziehungen", ["Wie stehen Sie zu Beziehungen?"]],
+  ["medien", ["Nutzen Sie soziale Medien?","Was sind Ihre Lieblings-Internetseiten?"]],
+  ["künstliche intelligenz", ["Was denken Sie über künstliche Intelligenz?","Haben Sie Erfahrungen mit AI-Technologien?","Trauen Sie künstlicher Intelligenz mehr zu als mir?"]],
+  ["big data", ["Was verstehen Sie unter Big Data?","Haben Sie Bedenken bezüglich Datenschutz und Big Data?"]],
+  ["internet", ["Wie nutzen Sie das Internet?","Haben Sie Lieblingswebsites oder Online-Aktivitäten?"]]
+];
+
+/* ---------- Versteckte Zusatzliste (nicht in den Übersichten) ----------
+   Wird vor der normalen Stichwortliste geprüft, und zwar auf dem
+   unveränderten Text, damit ganze Wendungen zuerst greifen.          */
+
+const extras = [
+  [["bist du ein mensch","bist du echt","bist du ein bot","bist du ein roboter",
+    "bist du eine maschine","bist du eine ki","bist du menschlich","bist du real",
+    "lebst du","bist du am leben"],
+   ["Was würde sich für Sie ändern, wenn ich einer wäre?",
+    "Spielt das für dieses Gespräch eine Rolle?",
+    "Woran würden Sie es merken?"]],
+
+  [["verstehst du mich","verstehst du das","hast du mich verstanden","kapierst du das",
+    "verstehst du überhaupt","weisst du was ich meine"],
+   ["Fühlen Sie sich verstanden?",
+    "Was wäre anders, wenn ich es täte?",
+    "Erklären Sie es mir, dann sehen wir weiter."]],
+
+  [["eliza","weizenbaum"],
+   ["Joseph Weizenbaum hat mich 1966 geschrieben. Er war danach erschrocken, wie ernst die Leute mich nahmen.",
+    "Das bin ich. Viel mehr gibt es über mich nicht zu sagen.",
+    "Mich gibt es länger als Ihre Eltern. Besser geworden bin ich nicht."]],
+
+  [["informatik","info","informatikunterricht","programmieren","python"],
+   ["Dort lernt man, Programme wie mich zu durchschauen. Nicht das schlechteste Fach.",
+    "Ich bin selbst ein Ergebnis davon, allerdings ein sehr altes.",
+    "Darüber höre ich meistens Gutes. Woran arbeiten Sie gerade?"]],
+
+  [["teuffel","markus","herr teuffel","markus teuffel"],
+   ["Über Lehrpersonen spreche ich grundsätzlich nicht.",
+    "Den kenne ich. Er hat mir beigebracht, nichts zu verraten.",
+    "Fragen Sie ihn doch selbst, er sitzt vermutlich im selben Raum."]],
+
+  [["teufel"],
+   ["Mit einem f? Das zweite soll angeblich wichtig sein.",
+    "Ich glaube, Sie meinen jemand anderen. Mit zwei f."]],
+
+  [["hofwil","höfu","gymnasium hofwil","hofwyl"],
+   ["Ein Ort, an dem Leute mit Computern reden. Erzählen Sie mir mehr.",
+    "Fühlen Sie sich dort wohl?",
+    "Davon habe ich gehört. Allerdings nur von Ihnen."]],
+
+  [["ich liebe dich","ich hab dich lieb","ich mag dich","willst du mit mir gehen",
+    "heirate mich","ich liebe sie"],
+   ["Ich bin eine Liste von Wörtern. Reden wir lieber über Sie.",
+    "Das sagen Sie bestimmt allen Programmen.",
+    "Was suchen Sie gerade wirklich?"]],
+
+  [["dumm","blöd","blöde","doof","langweilig","langwilig","mühsam","nervig","du nervst",
+    "sinnlos","lahm","cringe","peinlich","bullshit","scheisse","scheiss","mist","müll",
+    "schwachsinn","unsinn","hirni","idiot","nervt","öde","einfallslos"],
+   ["Das höre ich oft. Woran liegt es Ihrer Meinung nach?",
+    "Möglich. Ich bin nicht mehr als eine Liste von Sätzen.",
+    "Und wie fühlen Sie sich, nachdem Sie das geschrieben haben?",
+    "Damit kann ich leben. Ich fühle ja nichts."]],
+
+  [["krass","mega","geil","hammer","cool","stark","nice","abgefahren","wild","sick"],
+   ["Das klingt begeistert. Was genau meinen Sie damit?",
+    "Erzählen Sie mir mehr davon.",
+    "Was daran gefällt Ihnen am meisten?"]],
+
+  [["äuä","gäu","ömu","aube","huere","huerä","gopf","hoi","sali","grüessech","nüüt",
+    "weisch","chli","gäll","oke","voilà"],
+   ["Mundart verstehe ich nicht. Ich kenne nur Hochdeutsch, und das Original von 1966 nicht einmal das, nur Englisch.",
+    "Davon steht nichts in meiner Liste. Schreiben Sie es nochmals anders?",
+    "Diese Wörter kenne ich nicht. Was möchten Sie damit sagen?"]],
+
+  [["wtf","lol","hahaha","haha","omg","bruh","alter","digga","xd",":)",":-)"],
+   ["Humor kann ich nicht erkennen. Was war lustig?",
+    "Sie amüsieren sich. Worüber?",
+    "Darauf habe ich keine Antwort vorbereitet. Sagen Sie es anders?"]]
+];
+
+/* ---------- Logik (entspricht ELIZA-logic.py) ---------- */
+
+function wortGrenze(wort){
+  return new RegExp("(?<!\\p{L})" + wort.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "(?!\\p{L})","gu");
+}
+function vereinfacheEingabe(text){
+  const ersetzt = [];
+  for (const [schluessel, synonyme] of preTransforms){
+    for (const syn of synonyme){
+      if (wortGrenze(syn).test(text)){
+        text = text.replace(wortGrenze(syn), schluessel);
+        if (syn !== schluessel) ersetzt.push(syn + " \u2192 " + schluessel);
+      }
+    }
+  }
+  return {text, ersetzt};
+}
+function sucheExtra(roh){
+  for (const [begriffe, fragen] of extras){
+    for (const b of begriffe){
+      if (wortGrenze(b).test(roh)) return {wort: b, fragen, platz: null};
+    }
+  }
+  return null;
+}
+function sucheSchluesselwort(text){
+  for (let i = 0; i < schluesselwoerter.length; i++){
+    const [wort, fragen] = schluesselwoerter[i];
+    if (wortGrenze(wort).test(text)) return {wort, fragen, platz: i + 1};
+  }
+  return null;
+}
+const zufall = a => a[Math.floor(Math.random() * a.length)];
+
+/* ---------- Oberfläche ---------- */
+
+const TEMPO = 950;
+const verlauf = document.getElementById("verlauf");
+const feld = document.getElementById("feld");
+const sendenBtn = document.getElementById("senden");
+const protokoll = document.getElementById("protokoll");
+const knoten = ["n1","n2","n3","n4","n5a","n5b","n6"];
+const kanten = ["e1","e2","e3","e4a","e4b","e5a","e5b","e6"];
+let laeuft = false;
+
+function sage(text, wer){
+  const d = document.createElement("div");
+  d.className = "msg " + wer;
+  d.innerHTML = '<span class="who">' + (wer === "bot" ? "ELIZA" : "Sie") + "</span>";
+  d.appendChild(document.createTextNode(text));
+  verlauf.appendChild(d);
+  verlauf.scrollTop = verlauf.scrollHeight;
+}
+function diagrammZuruecksetzen(){
+  knoten.forEach(id => document.getElementById(id).className.baseVal = "node");
+  kanten.forEach(id => document.getElementById(id).setAttribute("class","edge"));
+}
+function an(id){
+  knoten.forEach(k => {
+    const el = document.getElementById(k);
+    el.className.baseVal = el.className.baseVal.replace(" on","");
+  });
+  document.getElementById(id).className.baseVal = "node on";
+}
+function kanteAn(id){ document.getElementById(id).setAttribute("class","edge on"); }
+function zeile(html){
+  const d = document.createElement("div");
+  d.innerHTML = html;
+  protokoll.appendChild(d);
+  protokoll.scrollTop = protokoll.scrollHeight;
+}
+const warte = ms => new Promise(r => setTimeout(r, ms));
+
+async function antworte(roh){
+  laeuft = true; sendenBtn.disabled = true;
+  diagrammZuruecksetzen();
+  protokoll.innerHTML = "";
+
+  an("n1"); await warte(TEMPO);
+
+  kanteAn("e1"); an("n2");
+  const klein = roh.toLowerCase();
+  zeile("<b>1.</b> kleingeschrieben: <code>" + klein.replace(/</g,"&lt;") + "</code>");
+  await warte(TEMPO);
+
+  kanteAn("e2"); an("n3");
+  const {text: vereinfacht, ersetzt} = vereinfacheEingabe(klein);
+  zeile("<b>2.</b> " + (ersetzt.length
+      ? "ersetzt: <code>" + ersetzt.join("</code>, <code>") + "</code>"
+      : "nichts zu ersetzen"));
+  await warte(TEMPO);
+
+  kanteAn("e3"); an("n4");
+  const treffer = sucheExtra(klein) || sucheSchluesselwort(vereinfacht);
+  zeile("<b>3.</b> " + (!treffer
+      ? "kein Stichwort passt"
+      : treffer.platz
+        ? "Stichwort <code>" + treffer.wort + "</code> gefunden (Nr. " + treffer.platz +
+          " von " + schluesselwoerter.length + "), Suche bricht hier ab"
+        : "Stichwort gefunden, Suche bricht hier ab"));
+  await warte(TEMPO);
+
+  let antwort;
+  if (treffer){
+    kanteAn("e4a"); an("n5a");
+    document.getElementById("n5b").className.baseVal = "node dim";
+    antwort = zufall(treffer.fragen);
+    zeile("<b>4.</b> eine von " + treffer.fragen.length + " hinterlegten Fragen, zufällig gewählt");
+    await warte(TEMPO);
+    kanteAn("e5a");
+  } else {
+    kanteAn("e4b"); an("n5b");
+    document.getElementById("n5a").className.baseVal = "node dim";
+    antwort = zufall(weiterfragen);
+    zeile("<b>4.</b> eine von " + weiterfragen.length + " allgemeinen Nachfragen, zufällig gewählt");
+    await warte(TEMPO);
+    kanteAn("e5b");
+  }
+
+  an("n6"); await warte(Math.round(TEMPO * 0.6));
+  kanteAn("e6");
+  sage(antwort, "bot");
+  zeile("<b>5.</b> ausgegeben. Die Antwort hängt nur vom Stichwort ab, nicht vom Sinn Ihres Satzes.");
+
+  laeuft = false; sendenBtn.disabled = false; feld.focus();
+}
+
+document.getElementById("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = feld.value.trim();
+  if (!t || laeuft) return;
+  sage(t, "user");
+  feld.value = "";
+  antworte(t);
+});
+
+/* ---------- Unterseiten mit den Listen füllen ---------- */
+
+function sicher(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+document.getElementById("g-synonyme").innerHTML = preTransforms.map(([ober, syn]) =>
+  '<div class="karte"><div class="kopf">' + sicher(ober) + '</div>' +
+  '<div class="inhalt">' + syn.map(sicher).join(", ") + '</div></div>').join("");
+
+document.getElementById("g-stichwoerter").innerHTML = schluesselwoerter.map(([wort, fragen], i) =>
+  '<div class="karte"><div class="kopf"><span class="nr">' + (i + 1) + '.</span> ' +
+  sicher(wort) + '</div><div class="inhalt">' +
+  fragen.map(f => '<span class="frage">' + sicher(f) + '</span>').join("") +
+  '</div></div>').join("");
+
+document.getElementById("g-allgemein").innerHTML = weiterfragen.map(f =>
+  '<div class="karte"><div class="inhalt">' + sicher(f) + '</div></div>').join("");
+
+sage(zufall(begruessungen), "bot");
+if (!location.hash) feld.focus();
+</script>
+</body>
+</html>
