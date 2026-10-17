@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welches Fach?</title>
+<style>
+:root{
+  --bg:#f4f2ec; --panel:#fff; --ink:#1d2228; --muted:#646c75; --line:#dcd8cf; --soft:#eeebe4; --hl:#fff3c4;
+  --c0:#d0461a; --c1:#1c64b0; --c2:#7b3fb0; --c3:#8a6a12;
+  --ok:#2e7d4f; --bad:#c62828; --none:#d6d1c7;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#15181c; --panel:#1f2328; --ink:#ebe8e2; --muted:#a2aab2; --line:#363c43; --soft:#2a2f35; --hl:#4a4224;
+    --c0:#f08a5d; --c1:#6ea8e6; --c2:#b98ae6; --c3:#d6b44c; --ok:#5cc28a; --bad:#ef6b6b; --none:#3a4048;}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{max-width:1220px;margin:0;padding:10px 14px}
+.hd{display:flex;align-items:baseline;gap:12px;margin:0 0 8px}
+h1{font-size:19px;margin:0}
+.sub{color:var(--muted)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stage{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:center}
+.person{width:230px;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.15);transition:transform .3s,opacity .3s}
+.person svg{display:block;width:100%;height:auto}
+.gone{transform:scale(.85);opacity:0}
+.bubble{position:relative;background:var(--soft);border-radius:14px;padding:12px 14px;font-size:18px;line-height:1.3;min-height:70px}
+.bubble:before{content:"";position:absolute;left:-12px;top:28px;border:12px solid transparent;border-right-color:var(--soft);border-left:0}
+.q{font-size:14px;color:var(--muted);margin:10px 0 6px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button.s{border:0;border-radius:10px;padding:10px 8px;font:inherit;font-size:17px;font-weight:700;color:#fff;cursor:pointer}
+@media (prefers-color-scheme:dark){button.s{color:#15181c}}
+button.plain{border:0;background:var(--ink);color:var(--panel);border-radius:10px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer}
+:focus-visible{outline:3px solid #f2b705;outline-offset:3px}
+.robot{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.rb{background:var(--soft);border-radius:12px;padding:6px 12px;flex:1;min-height:44px}
+.rb .why{display:block;font-size:12px;color:var(--muted)}
+.rb b{font-size:18px}
+table.nb{width:100%;border-collapse:collapse;font-size:13px;line-height:1.2}
+table.nb th{font-weight:700;text-align:center;padding:3px 2px;font-size:12px}
+table.nb td.grp{color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.02em;vertical-align:top;padding-top:4px;width:70px}
+table.nb td{padding:3px 4px;text-align:center;border-top:1px solid var(--line)}
+table.nb td.v{text-align:left}
+table.nb tr.on td:not(.grp){background:var(--hl);font-weight:700}
+table.nb td.win{color:#fff!important}
+table.nb tr.sum td{border-top:2px solid var(--ink);font-weight:700}
+table.nb td.zero{color:var(--muted);font-weight:400}
+.flash{animation:fl 1s ease}
+@keyframes fl{0%{background:#f2b705;color:#000}100%{}}
+.strip{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;margin-top:4px}
+.strip i{display:block;height:12px;border-radius:2px;background:var(--none)}
+.strip i.ok{background:var(--ok)} .strip i.bad{background:var(--bad)}
+.lbl{font-size:12px;color:var(--muted);margin-top:6px}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+.center{text-align:center}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.box{background:var(--soft);border-radius:10px;padding:10px 12px}
+.big{font-size:24px;font-weight:700}
+.mist{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:10px}
+.mist div{background:var(--soft);border-radius:8px;padding:8px 10px;font-size:13px}
+@media (max-width:980px){main{grid-template-columns:1fr}.stage{grid-template-columns:1fr}.bubble:before{display:none}.summary{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <main>
+    <div><div class="hd"><h1>Welches Fach unterrichtet diese Lehrperson?</h1><span class="sub" id="sub"></span></div>
+    <section class="panel" id="stage" aria-live="polite"></section></div>
+    <aside class="panel" id="side"></aside>
+  </main>
+</div>
+<script>
+// ---------------- Fächer und Merkmale ----------------
+const SUB=["Sport","Mathematik","Musik","Geschichte"];
+const SHORT=["Sport","Mathe","Musik","Gesch."];
+const COL=["var(--c0)","var(--c1)","var(--c2)","var(--c3)"];
+const FEAT=[
+  {k:"top",name:"Oberteil",vals:{tj:"Trainerjacke",hemd:"Hemd",pull:"Pullover"}},
+  {k:"gl", name:"Brille",  vals:{ja:"mit Brille",nein:"ohne Brille"}},
+  {k:"it", name:"In der Hand",vals:{pfeife:"Pfeife",tasse:"Kaffeetasse",buch:"Buch",noten:"Notenblatt"}}
+];
+// s: Fach (0 Sport, 1 Mathe, 2 Musik, 3 Geschichte); amb: mehrdeutiger Hinweis
+// Aussehen: skin, hair (kurz/lang/dutt), hc (Haarfarbe), tc (Farbe Oberteil)
+function P(s,top,gl,it,say,look,amb){return Object.assign({s,top,gl,it,say,amb:!!amb},look)}
+const SK=["#f1c7a5","#d9a27a","#a8714c","#6e4a33"], HC=["#2b1d14","#6b4a2b","#b78a4a","#8c8c8c","#c2552b"];
+const TRAIN=[
+  P(0,"tj","nein","pfeife","Heute spielen wir Unihockey in Halle 2.",{skin:0,hair:"kurz",hc:1,tc:"#2a6fd6"}),
+  P(1,"hemd","ja","tasse","Lösen Sie die Gleichung nach x auf.",{skin:1,hair:"lang",hc:0,tc:"#eef3f8"}),
+  P(2,"pull","nein","noten","Wir singen den Kanon noch einmal, diesmal dreistimmig.",{skin:2,hair:"lang",hc:0,tc:"#9b3b4c"}),
+  P(3,"hemd","ja","buch","Heute geht es um die Französische Revolution.",{skin:0,hair:"kurz",hc:3,tc:"#d7e6f5"}),
+  P(0,"tj","nein","pfeife","Alle in Turnschuhe bitte, wir laufen 12 Minuten.",{skin:3,hair:"dutt",hc:0,tc:"#c4302b"}),
+  P(1,"pull","ja","tasse","Morgen schreiben wir den Test über Ableitungen.",{skin:0,hair:"kurz",hc:2,tc:"#3f6b4a"}),
+  P(2,"pull","nein","noten","Wer von Ihnen spielt schon ein Instrument?",{skin:1,hair:"kurz",hc:0,tc:"#c79a2c"}),
+  P(3,"pull","ja","buch","Welche Quelle ist glaubwürdiger, und warum?",{skin:2,hair:"dutt",hc:1,tc:"#5a4a7a"}),
+  P(1,"hemd","ja","tasse","Heute berechnen wir, wie schnell Usain Bolt wirklich war.",{skin:2,hair:"kurz",hc:0,tc:"#ffffff"},1),
+  P(0,"tj","nein","tasse","Wer hat die Bälle schon wieder nicht zurückgebracht?",{skin:0,hair:"kurz",hc:3,tc:"#2a6fd6"}),
+  P(3,"hemd","ja","buch","Die Römer bauten Strassen bis nach Helvetien.",{skin:1,hair:"lang",hc:4,tc:"#eef3f8"}),
+  P(2,"tj","nein","noten","Nach dem Einsingen bewegen wir uns zum Rhythmus.",{skin:0,hair:"lang",hc:2,tc:"#c4302b"},1),
+  P(0,"tj","nein","pfeife","Heute Weitsprung, die Grube ist frisch gerecht.",{skin:2,hair:"kurz",hc:0,tc:"#d7e6f5"}),
+  P(1,"hemd","ja","tasse","Zeichnen Sie den Graphen der Funktion.",{skin:3,hair:"lang",hc:0,tc:"#2f5d8a"}),
+  P(2,"pull","nein","noten","Hören Sie auf den Unterschied zwischen Dur und Moll.",{skin:0,hair:"dutt",hc:2,tc:"#ffffff"}),
+  P(3,"hemd","ja","tasse","Heute hören wir Nationalhymnen aus dem Jahr 1914.",{skin:0,hair:"kurz",hc:1,tc:"#eef3f8"},1),
+  P(0,"tj","nein","tasse","Wir messen den Puls und tragen die Werte in eine Tabelle ein.",{skin:1,hair:"lang",hc:1,tc:"#1f8a5b"},1),
+  P(1,"hemd","ja","buch","Wer kann mir den Satz des Pythagoras erklären?",{skin:0,hair:"kurz",hc:3,tc:"#ffffff"}),
+  P(2,"pull","nein","tasse","Heute analysieren wir einen aktuellen Popsong.",{skin:3,hair:"kurz",hc:0,tc:"#c75f2c"}),
+  P(3,"pull","ja","buch","Wir rechnen nach, wie teuer ein Brot im Jahr 1800 war.",{skin:1,hair:"lang",hc:3,tc:"#6b5a3a"},1),
+  P(0,"tj","nein","pfeife","Taktgefühl brauchen Sie heute beim Tanzen in der Turnhalle.",{skin:2,hair:"dutt",hc:0,tc:"#2a6fd6"},1),
+  P(1,"pull","ja","tasse","Rechnen Sie die Wahrscheinlichkeit für einen Sechser aus.",{skin:2,hair:"lang",hc:0,tc:"#4a6a8a"}),
+  P(2,"pull","ja","noten","Bitte stellen Sie die Gitarren vorsichtig zurück.",{skin:0,hair:"lang",hc:4,tc:"#3f6b4a"}),
+  P(3,"hemd","ja","buch","Was wissen Sie schon über den Kalten Krieg?",{skin:3,hair:"kurz",hc:0,tc:"#d7e6f5"})
+];
+TRAIN.sort((a,b)=>a.amb-b.amb);
+const TEST=[
+  P(1,"tj","nein","tasse","Neu an der Schule: Ich unterrichte Mathematik und gehe gern joggen.",{skin:1,hair:"dutt",hc:1,tc:"#1f8a5b"}),
+  P(0,"hemd","ja","buch","Heute ist Theorie: Wie funktioniert ein Muskel?",{skin:0,hair:"kurz",hc:0,tc:"#ffffff"}),
+  P(2,"pull","nein","noten","Wir proben für das Schulkonzert.",{skin:2,hair:"lang",hc:0,tc:"#9b3b4c"}),
+  P(3,"hemd","ja","buch","Heute: die Gründung des Bundesstaates 1848.",{skin:0,hair:"lang",hc:3,tc:"#eef3f8"}),
+  P(1,"pull","ja","tasse","Bitte die Lösungen zu Seite 42 vergleichen.",{skin:3,hair:"kurz",hc:0,tc:"#2f5d8a"}),
+  P(0,"tj","nein","pfeife","Zwei Runden einlaufen, dann Basketball.",{skin:1,hair:"kurz",hc:2,tc:"#c4302b"})
+];
+
+// ---------------- Notizbuch der Maschine ----------------
+let NB;
+function resetNB(){NB={};FEAT.forEach(f=>Object.keys(f.vals).forEach(v=>NB[f.k+":"+v]=[0,0,0,0]))}
+function scores(p){const s=[0,0,0,0];FEAT.forEach(f=>NB[f.k+":"+p[f.k]].forEach((n,j)=>s[j]+=n));return s}
+function guess(p){const s=scores(p),m=Math.max(...s);if(m===0)return null;const w=s.map((x,j)=>x===m?j:-1).filter(j=>j>=0);return w.length===1?w[0]:null}
+
+// ---------------- Zeichnung ----------------
+function personSVG(p,small){
+  const skin=SK[p.skin], hc=HC[p.hc], tc=p.tc;
+  let s=`<svg viewBox="0 0 290 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <rect width="290" height="300" fill="#e9edf1"/><rect y="0" width="290" height="70" fill="#2f4f45"/><rect y="66" width="290" height="6" fill="#8a6d4a"/>`;
+  // Haare hinten
+  if(p.hair==="lang") s+=`<path d="M100 92 Q98 160 112 182 L178 182 Q192 160 190 92 Z" fill="${hc}"/>`;
+  // Körper
+  s+=`<path d="M60 300 L66 214 Q72 182 112 172 L178 172 Q218 182 224 214 L230 300 Z" fill="${tc}" stroke="rgba(0,0,0,.18)"/>`;
+  if(p.top==="tj"){
+    s+=`<path d="M70 300 L76 214 Q80 190 104 180" fill="none" stroke="#fff" stroke-width="7"/><path d="M220 300 L214 214 Q210 190 186 180" fill="none" stroke="#fff" stroke-width="7"/>`;
+    s+=`<line x1="145" y1="186" x2="145" y2="300" stroke="#222" stroke-width="3"/><path d="M124 174 L145 190 L166 174 L166 166 L124 166 Z" fill="${tc}" stroke="rgba(0,0,0,.25)"/>`;
+  } else if(p.top==="hemd"){
+    s+=`<path d="M124 170 L145 200 L128 206 L118 176 Z" fill="${tc}" stroke="#999"/><path d="M166 170 L145 200 L162 206 L172 176 Z" fill="${tc}" stroke="#999"/>`;
+    for(const y of [214,236,258,280]) s+=`<circle cx="145" cy="${y}" r="3" fill="#888"/>`;
+  } else {
+    s+=`<path d="M122 172 Q145 196 168 172" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="6"/>`;
+    for(let x=78;x<220;x+=12) s+=`<line x1="${x}" y1="230" x2="${x}" y2="300" stroke="rgba(0,0,0,.08)" stroke-width="4"/>`;
+  }
+  // Hals und Kopf
+  s+=`<rect x="133" y="150" width="24" height="26" fill="${skin}"/>`;
+  s+=`<ellipse cx="145" cy="118" rx="40" ry="46" fill="${skin}"/>`;
+  // Haare oben
+  if(p.hair==="kurz") s+=`<path d="M104 112 Q102 70 145 68 Q190 70 186 112 Q176 88 145 88 Q114 88 104 112Z" fill="${hc}"/>`;
+  if(p.hair==="lang") s+=`<path d="M103 120 Q100 68 145 68 Q192 68 187 120 Q182 90 160 84 Q140 96 108 98 Z" fill="${hc}"/>`;
+  if(p.hair==="dutt") s+=`<circle cx="145" cy="62" r="17" fill="${hc}"/><path d="M104 112 Q102 72 145 72 Q190 72 186 112 Q176 92 145 90 Q114 92 104 112Z" fill="${hc}"/>`;
+  // Gesicht
+  s+=`<circle cx="130" cy="118" r="4" fill="#222"/><circle cx="160" cy="118" r="4" fill="#222"/>`;
+  s+=`<path d="M131 141 Q145 151 159 141" fill="none" stroke="#222" stroke-width="3" stroke-linecap="round"/>`;
+  if(p.gl==="ja") s+=`<g fill="none" stroke="#222" stroke-width="3"><circle cx="130" cy="118" r="12"/><circle cx="160" cy="118" r="12"/><line x1="142" y1="118" x2="148" y2="118"/></g>`;
+  // Gegenstand
+  if(p.it==="pfeife"){
+    s+=`<path d="M128 176 Q145 220 162 176" fill="none" stroke="#e33" stroke-width="3"/><rect x="136" y="212" width="22" height="12" rx="5" fill="#cfd4d9" stroke="#555" stroke-width="2"/><circle cx="141" cy="218" r="3" fill="#555"/>`;
+  } else {
+    s+=`<ellipse cx="200" cy="262" rx="18" ry="14" fill="${skin}"/>`;
+    if(p.it==="tasse") s+=`<rect x="186" y="226" width="34" height="38" rx="5" fill="#fff" stroke="#555" stroke-width="2"/><path d="M220 234 Q234 245 220 256" fill="none" stroke="#555" stroke-width="3"/><path d="M196 220 q6 -8 0 -16 M208 220 q6 -8 0 -16" fill="none" stroke="#999" stroke-width="2"/>`;
+    if(p.it==="buch") s+=`<rect x="176" y="214" width="52" height="58" rx="3" fill="#8a2d2d" stroke="#3d1212" stroke-width="2"/><rect x="186" y="226" width="32" height="8" fill="#e9d9a8"/>`;
+    if(p.it==="noten"){s+=`<rect x="172" y="206" width="60" height="70" fill="#fff" stroke="#555" stroke-width="2"/>`;
+      for(const y of [222,240,258]){s+=`<g stroke="#555" stroke-width="1">${[0,3,6,9,12].map(d=>`<line x1="178" x2="226" y1="${y-6+d}" y2="${y-6+d}"/>`).join("")}</g>`;
+        s+=`<ellipse cx="${190+(y%5)}" cy="${y}" rx="3.5" ry="2.6" fill="#222"/><line x1="${193+(y%5)}" y1="${y}" x2="${193+(y%5)}" y2="${y-10}" stroke="#222" stroke-width="1.5"/><ellipse cx="212" cy="${y-3}" rx="3.5" ry="2.6" fill="#222"/>`}}
+  }
+  return s+`</svg>`;
+}
+const ROBOT=`<svg width="44" height="52" viewBox="0 0 54 64" aria-hidden="true"><line x1="27" y1="2" x2="27" y2="12" stroke="currentColor" stroke-width="3"/><circle cx="27" cy="4" r="4" fill="#f2b705"/><rect x="5" y="12" width="44" height="34" rx="9" fill="currentColor"/><circle cx="19" cy="29" r="5" fill="#7fe0ff"/><circle cx="35" cy="29" r="5" fill="#7fe0ff"/><rect x="14" y="50" width="26" height="12" rx="4" fill="currentColor"/></svg>`;
+
+// ---------------- Zustand ----------------
+let phase="start", i=0, labels=[], tips=[], tipNow=null, testRes=[], busy=false, lastInc=null;
+const $=id=>document.getElementById(id);
+const name=j=>`<b style="color:${COL[j]}">${SUB[j]}</b>`;
+
+function notebook(p,showSum){
+  const on=p?FEAT.map(f=>f.k+":"+p[f.k]):[];
+  const win=p?guess(p):null;
+  const wst=j=>win!=null&&j===win?` win" style="background:${COL[j]}`:"";
+  let h=`<table class="nb"><tr><th colspan="2"></th>${SHORT.map((n,j)=>`<th style="color:${COL[j]}">${n}</th>`).join("")}</tr>`;
+  FEAT.forEach(f=>{
+    const ents=Object.entries(f.vals);
+    ents.forEach(([v,lab],r)=>{
+      const key=f.k+":"+v, isOn=on.includes(key);
+      h+=`<tr class="${isOn?"on":""}">${r===0?`<td class="grp" rowspan="${ents.length}">${f.name}</td>`:""}<td class="v">${lab}</td>${NB[key].map((n,j)=>`<td class="${n?"":"zero"} ${lastInc&&lastInc.keys.includes(key)&&lastInc.j===j?"flash":""}${isOn?wst(j):""}">${n}</td>`).join("")}</tr>`;
+    });
+  });
+  if(p&&showSum){const s=scores(p);h+=`<tr class="sum"><td colspan="2">Summe gelbe Zeilen</td>${s.map((n,j)=>`<td class="${wst(j)}">${n}</td>`).join("")}</tr>`}
+  return h+`</table>`;
+}
+function sidePanel(p,bubble,stripHtml){
+  $("side").innerHTML=`<div class="robot"><span style="color:var(--ink)">${ROBOT}</span><div class="rb">${bubble}</div></div>
+  <div style="font-weight:700;font-size:14px">Notizbuch der Maschine <span style="font-weight:400;font-size:12px;color:var(--muted)">(sie sieht nur das Aussehen)</span></div>
+  ${notebook(p,true)}${stripHtml||""}`;
+}
+
+function render(){({start,train,between,test,end})[phase]()}
+
+function start(){
+  resetNB(); lastInc=null;
+  $("sub").textContent="";
+  $("stage").innerHTML=`<div class="stage"><div class="person">${personSVG(TRAIN[0])}</div>
+    <div><div class="bubble" style="font-size:17px">Eine Maschine soll lernen, an welchem Fach eine Lehrperson unterrichtet. Sie sieht nur das <b>Aussehen</b>.<br><br>Sie hören, was die Lehrperson sagt. Ordnen Sie <b>24 Lehrpersonen</b> dem richtigen Fach zu. Die Maschine lernt aus Ihren Antworten.</div>
+    <p><button class="plain" id="go">Los geht's</button></p></div></div>`;
+  sidePanel(null,"Mein Notizbuch ist noch leer.");
+  $("go").onclick=()=>{phase="train";render()};
+}
+
+function stripTrain(){
+  const done=tips.filter(x=>x!=="none"),last=done.slice(-8),ok=last.filter(x=>x==="ok").length;
+  return `<div class="lbl">Tipps der Maschine: grün = gleich wie Sie${last.length?` (letzte 8: <b>${Math.round(100*ok/last.length)} %</b>)`:""}</div>
+  <div class="strip">${TRAIN.map((_,k)=>`<i class="${tips[k]||""}"></i>`).join("")}</div>`;
+}
+
+function train(){
+  const p=TRAIN[i]; tipNow=guess(p);
+  $("sub").textContent=`Lehrperson ${i+1} von ${TRAIN.length}`;
+  $("stage").innerHTML=`<div class="stage"><div class="person" id="pc">${personSVG(p)}</div>
+    <div><div class="bubble">«${p.say}»</div>
+    <div class="q">Welches Fach unterrichtet diese Lehrperson?</div>
+    <div class="choices">${SUB.map((n,j)=>`<button class="s" style="background:${COL[j]}" data-j="${j}">${n}</button>`).join("")}</div></div></div>`;
+  sidePanel(p,tipNow==null?"Dazu habe ich noch keine klare Meinung.":`Ich glaube: ${name(tipNow)}`,stripTrain());
+  lastInc=null;
+  document.querySelectorAll("button.s").forEach(b=>b.onclick=()=>pick(+b.dataset.j));
+}
+function pick(j){
+  if(busy) return; busy=true;
+  const p=TRAIN[i];
+  labels.push(j);
+  tips.push(tipNow==null?"none":(tipNow===j?"ok":"bad"));
+  const keys=FEAT.map(f=>f.k+":"+p[f.k]); keys.forEach(k=>NB[k][j]++); lastInc={keys,j};
+  const fb=tipNow==null?`Notiert: ${name(j)}`:(tipNow===j?`<span class="ok">✓ Gleich wie Sie.</span> Notiert: ${name(j)}`:`<span class="bad">✗ Sie sagen ${SUB[j]}.</span> Notiert.`);
+  sidePanel(p,fb,stripTrain());
+  $("pc").classList.add("gone");
+  setTimeout(()=>{busy=false;i++;if(i>=TRAIN.length){phase="between"}render()},1100);
+}
+
+function between(){
+  lastInc=null;
+  $("sub").textContent="Training fertig";
+  $("stage").innerHTML=`<div class="center" style="padding:40px 20px"><p style="font-size:19px">Die Maschine hat 24 Lehrpersonen gesehen.</p>
+  <p style="font-size:19px">Jetzt kommen <b>6 neue Lehrpersonen</b>. Die Maschine entscheidet <b>allein</b>.</p>
+  <p><button class="plain" id="go">Test starten</button></p></div>`;
+  sidePanel(null,"Ich bin bereit.");
+  $("go").onclick=()=>{phase="test";i=0;render()};
+}
+
+function test(){
+  const p=TEST[i], g=guess(p), ok=g===p.s; testRes[i]=ok;
+  $("sub").textContent=`Neue Lehrperson ${i+1} von ${TEST.length}`;
+  $("stage").innerHTML=`<div class="stage"><div class="person">${personSVG(p)}</div>
+    <div><div class="bubble">«${p.say}»</div>
+    <p style="font-size:19px">In Wirklichkeit: ${name(p.s)}</p>
+    <button class="plain" id="nx">${i<TEST.length-1?"Nächste Lehrperson":"Auswertung"}</button></div></div>`;
+  const sc=scores(p);
+  sidePanel(p,`Das ist ${g==null?"<b>unklar</b>":name(g)} <span class="${ok?"ok":"bad"}" style="font-weight:700">${ok?"✓":"✗"}</span><span class="why">${g==null?"Zwei Fächer haben die gleiche Summe.":"Grösste Summe der gelben Zeilen: "+sc[g]+" bei "+SUB[g]}</span>`,
+    `<div class="lbl">Ergebnis im Test</div><div class="strip" style="grid-template-columns:repeat(6,1fr)">${TEST.map((_,k)=>`<i class="${k<=i?(testRes[k]?"ok":"bad"):""}"></i>`).join("")}</div>`);
+  $("nx").onclick=()=>{i++;if(i>=TEST.length)phase="end";render()};
+  $("nx").focus();
+}
+
+function end(){
+  const okT=testRes.filter(Boolean).length;
+  const wrong=TRAIN.map((p,k)=>({p,l:labels[k]})).filter(x=>x.l!==x.p.s);
+  // stärkste Zusammenhänge
+  const strong=[];
+  FEAT.forEach(f=>Object.entries(f.vals).forEach(([v,lab])=>{const c=NB[f.k+":"+v],tot=c.reduce((a,b)=>a+b,0),m=Math.max(...c);
+    if(tot>=3&&m/tot>=0.6) strong.push({lab,j:c.indexOf(m),r:m/tot})}));
+  strong.sort((a,b)=>b.r-a.r);
+  $("sub").textContent="Auswertung";
+  $("stage").innerHTML=`<div class="summary">
+    <div class="box"><div class="lbl" style="margin:0">Maschine im Test</div><div class="big">${okT} von ${TEST.length}</div>richtig</div>
+    <div class="box"><div class="lbl" style="margin:0">Das hat die Maschine gelernt</div>${strong.slice(0,4).map(x=>`<div>${x.lab} → ${name(x.j)}</div>`).join("")}</div>
+    <div class="box"><div class="lbl" style="margin:0">Ihre Zuordnungen</div><div class="big">${TRAIN.length-wrong.length} von ${TRAIN.length}</div>richtig</div></div>
+    ${wrong.length?`<p style="margin:12px 0 0"><b>Hier lagen Sie daneben.</b> Die Maschine hat diese Fehler in ihr Notizbuch übernommen.</p>
+    <div class="mist">${wrong.map(x=>`<div>«${x.p.say}»<br>Sie: <b>${SUB[x.l]}</b>, richtig: ${name(x.p.s)}</div>`).join("")}</div>`
+    :`<p style="margin:12px 0 0">Sie haben alles richtig zugeordnet. Die Maschine hat trotzdem Fehler gemacht.</p>`}
+    <p><button class="plain" id="again">Nochmals von vorne</button></p>`;
+  sidePanel(null,"Ich kenne nur Äusserlichkeiten. Was jemand unterrichtet, sehe ich nicht.");
+  $("again").onclick=()=>{phase="start";i=0;labels=[];tips=[];testRes=[];render()};
+}
+
+document.addEventListener("keydown",e=>{if(phase==="train"&&["1","2","3","4"].includes(e.key))pick(+e.key-1)});
+render();
+</script>
+</body>
+</html>
