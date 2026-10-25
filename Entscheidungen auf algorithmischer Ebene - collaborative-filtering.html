@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collaborative Filtering</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2129; --muted: #5d6573; --card: #f4f6f9; --line: #d9dee6;
+    --accent: #2f6fdb; --accent-fg: #ffffff; --pick: #1f8a4c; --pick-bg: #dff3e6;
+    --bar: #2f6fdb; --chip: #e7ebf1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16191f; --fg: #e6e9ef; --muted: #9aa3b2; --card: #20252d; --line: #343b46;
+      --accent: #6b9cf0; --accent-fg: #0e1116; --pick: #5fd08f; --pick-bg: #1d3a2a;
+      --bar: #6b9cf0; --chip: #2b313b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 10px; background: var(--bg); color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: none; display: flex; flex-direction: column; gap: 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  h2 { font-size: 14px; margin: 0 0 6px; font-weight: 700; }
+  h2 span { color: var(--accent); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* Schritt 1 */
+  .rate { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
+  @media (max-width: 560px) { .rate { grid-template-columns: 1fr; } }
+  .film { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .stars { display: flex; gap: 4px; border: 0; margin: 0; padding: 0; }
+  .stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .stars label {
+    width: 30px; height: 28px; display: grid; place-items: center; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-weight: 600;
+  }
+  .stars input:checked + label { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .stars input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* Schritt 2 */
+  .simrow { display: grid; grid-template-columns: 70px 40px 1fr; align-items: center; gap: 8px; padding: 2px 0; }
+  .simrow .name { font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+  .bar { height: 10px; background: var(--bar); border-radius: 5px; transition: width .3s; min-width: 2px; }
+  .howbtn {
+    margin-top: 6px; font: inherit; font-size: 13px; cursor: pointer; padding: 3px 10px;
+    border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 6px;
+  }
+  .how { margin-top: 6px; font-size: 12px; }
+  .how p { margin: 0 0 4px; }
+  .calc { font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin: 1px 0; }
+
+  /* Schritt 3 */
+  .row { display: grid; grid-template-columns: 20px 92px 1fr; gap: 6px; align-items: start; padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .rank { color: var(--muted); font-weight: 600; }
+  .who { font-weight: 600; }
+  .who small { display: block; font-weight: 400; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { font-size: 12px; padding: 1px 7px; border-radius: 10px; background: var(--chip); border: 1px solid transparent; }
+  .chip.seen { text-decoration: line-through; color: var(--muted); }
+  .chip.low { color: var(--muted); }
+  .chip.pick { background: var(--pick-bg); border-color: var(--pick); color: var(--pick); font-weight: 700; }
+  .chip.skip { opacity: .35; }
+
+  /* Schritt 4 */
+  .recs { margin: 0; padding-left: 22px; }
+  .recs li { padding: 2px 0; font-size: 15px; font-weight: 600; }
+  .recs li small { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .none { color: var(--muted); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="card" aria-labelledby="h1">
+    <h2 id="h1"><span>Schritt 1:</span> Bewerten Sie diese drei Titel von 1 bis 5 (1 = schlecht, 5 = überragend).</h2>
+    <div class="rate" id="rate"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h2">
+    <h2 id="h2"><span>Schritt 2:</span> Der Algorithmus berechnet, wie ähnlich Ihnen die anderen Nutzer*innen sind.</h2>
+    <div id="sim"></div>
+    <button class="howbtn" data-target="how2" aria-expanded="false" aria-controls="how2">Wie wird das berechnet?</button>
+    <div class="how" id="how2" hidden>
+      <p>Verglichen werden nur Titel, die beide bewertet haben. Daraus wird der durchschnittliche Notenunterschied berechnet:
+        Ähnlichkeit = 1 / (1 + durchschnittlicher Unterschied). Gleiche Noten ergeben 1, keine gemeinsamen Titel ergeben 0.</p>
+      <div id="calc"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h3">
+    <h2 id="h3"><span>Schritt 3:</span> Der Algorithmus sucht bei ähnlichen Personen Titel, die Sie noch nicht kennen.</h2>
+    <div id="trace"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h4" aria-live="polite">
+    <h2 id="h4"><span>Schritt 4:</span> Der Algorithmus empfiehlt Ihnen diese Titel.</h2>
+    <div id="recs"></div>
+    <button class="howbtn" data-target="how4" aria-expanded="false" aria-controls="how4">Wie wird das berechnet?</button>
+    <div class="how" id="how4" hidden>
+      <p>Die Personen werden nach Ähnlichkeit sortiert, die ähnlichste zuerst. Von jeder Person werden Titel übernommen,
+        die Sie noch nicht kennen und die sie mit 4 oder 5 bewertet hat, die besten zuerst.
+        Hat eine Person keinen solchen Titel, geht es bei der nächsten weiter. Sobald drei Titel gefunden sind, endet die Suche.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const bewertungen = {
+  Alice: {"Stranger Things": 4, "One Piece": 5, "Wednesday": 4, "Percy Jackson": 5, "Bridgerton": 3},
+  Bob:   {"Stranger Things": 5, "Squid Game": 5, "Demon Slayer: Infinity Castle": 4, "Mickey 17": 3, "Jurassic World: Rebirth": 2},
+  Carol: {"KPop Demon Hunters": 5, "Bridgerton": 5, "Wicked": 4, "Enola Holmes 3": 4, "Avatar: Der Herr der Elemente": 3},
+  Dana:  {"One Piece": 5, "Wednesday": 2, "Stranger Things": 3, "Bridgerton": 3, "Jurassic World: Rebirth": 3},
+  Elias: {"Wednesday": 4, "One Piece": 2, "Project Hail Mary": 5, "Squid Game": 4, "Percy Jackson": 4}
+};
+const meineTitel = ["Stranger Things", "One Piece", "Wednesday"];
+const ich = {"Stranger Things": 4, "One Piece": 4, "Wednesday": 3};
+const ANZAHL = 3;
+
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// Schritt 1: Bewertungsknöpfe
+const rateEl = document.getElementById("rate");
+meineTitel.forEach((titel, i) => {
+  const box = document.createElement("div");
+  box.innerHTML = `<div class="film" id="f${i}">${esc(titel)}</div>`;
+  const fs = document.createElement("fieldset");
+  fs.className = "stars";
+  fs.setAttribute("aria-labelledby", "f" + i);
+  for (let v = 1; v <= 5; v++) {
+    const id = `r${i}-${v}`;
+    fs.insertAdjacentHTML("beforeend",
+      `<input type="radio" name="r${i}" id="${id}" value="${v}" ${ich[titel] === v ? "checked" : ""}>` +
+      `<label for="${id}" aria-label="${v} von 5">${v}</label>`);
+  }
+  fs.addEventListener("change", e => { ich[titel] = Number(e.target.value); update(); });
+  box.append(fs);
+  rateEl.append(box);
+});
+
+// Erklärungen ein-/ausblenden
+document.querySelectorAll(".howbtn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const box = document.getElementById(btn.dataset.target);
+    const open = box.hidden;
+    box.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    btn.textContent = open ? "Berechnung ausblenden" : "Wie wird das berechnet?";
+  });
+});
+
+// Ähnlichkeit wie im Python-Skript: durchschnittlicher Notenunterschied der gemeinsamen Titel
+function aehnlichkeit(a, b) {
+  const gemeinsam = Object.keys(a).filter(t => t in b);
+  if (gemeinsam.length === 0) return { s: 0, gemeinsam, d: null, avg: null };
+  const d = gemeinsam.reduce((sum, t) => sum + Math.abs(a[t] - b[t]), 0);
+  const avg = d / gemeinsam.length;
+  return { s: 1 / (1 + avg), gemeinsam, d, avg };
+}
+const zahl = x => Number.isInteger(x) ? String(x) : x.toFixed(2);
+
+function update() {
+  const res = Object.entries(bewertungen).map(([name, b]) => ({ name, ...aehnlichkeit(ich, b) }));
+
+  // Schritt 2
+  document.getElementById("sim").innerHTML = res.map(r =>
+    `<div class="simrow"><span class="name">${r.name}</span><span class="num">${r.s.toFixed(2)}</span>` +
+    `<div><div class="bar" style="width:${Math.round(r.s * 100)}%"></div></div></div>`).join("");
+
+  document.getElementById("calc").innerHTML = res.map(r => {
+    if (r.gemeinsam.length === 0) return `<div class="calc">${r.name}: keine gemeinsamen Titel → 0</div>`;
+    const teile = r.gemeinsam.map(t => `|${ich[t]}−${bewertungen[r.name][t]}|`).join(" + ");
+    const n = r.gemeinsam.length;
+    const schnitt = n === 1 ? `${teile} = ${r.d}` : `(${teile}) / ${n} = ${zahl(r.avg)}`;
+    return `<div class="calc">${r.name}: ${schnitt} → 1 / (1 + ${zahl(r.avg)}) = ${r.s.toFixed(2)}</div>`;
+  }).join("");
+
+  // Schritt 3: ähnlichste Person zuerst (stabile Sortierung), pro Person beste Noten zuerst
+  const sortiert = [...res].sort((a, b) => b.s - a.s);
+  const recs = [];
+  document.getElementById("trace").innerHTML = sortiert.map((r, i) => {
+    const titel = Object.entries(bewertungen[r.name]).sort((a, b) => b[1] - a[1]);
+    const chips = titel.map(([t, wert]) => {
+      let cls, tip;
+      if (recs.length >= ANZAHL) { cls = "skip"; tip = "nicht mehr geprüft"; }
+      else if (t in ich) { cls = "seen"; tip = "kennen Sie schon"; }
+      else if (wert < 4 || recs.some(x => x.t === t)) { cls = "low"; tip = wert < 4 ? "zu tief bewertet" : "schon empfohlen"; }
+      else { cls = "pick"; tip = "wird empfohlen"; recs.push({ t, von: r.name, wert }); }
+      return `<span class="chip ${cls}" title="${tip}">${esc(t)} ${wert}</span>`;
+    }).join("");
+    return `<div class="row"><span class="rank">${i + 1}.</span>` +
+      `<span class="who">${r.name}<small>Ähnlichkeit ${r.s.toFixed(2)}</small></span>` +
+      `<div class="chips">${chips}</div></div>`;
+  }).join("");
+
+  // Schritt 4
+  document.getElementById("recs").innerHTML = recs.length
+    ? `<ol class="recs">${recs.map(x => `<li>${esc(x.t)} <small>von ${x.von}, Note ${x.wert}</small></li>`).join("")}</ol>`
+    : `<p class="none">Keine Empfehlung verfügbar</p>`;
+}
+update();
+</script>
+</body>
+</html>
