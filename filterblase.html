@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entstehung von Filterblasen</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --line:#d8dce2;
+    --ink:#1b1f24;
+    --muted:#656d78;
+    --dafuer-bg:#fae3b8;   --dafuer-ink:#8a5200;   --dafuer-bal:#e0a33c;
+    --dagegen-bg:#cfdcf8;  --dagegen-ink:#1c418f;  --dagegen-bal:#5b82d6;
+    --sachlich-bg:#d2e5d9; --sachlich-ink:#2a5c3f; --sachlich-bal:#6ba587;
+    --karte:46px;
+    --luft:4px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  header{padding:6px 14px 0; display:flex; align-items:baseline; gap:12px;}
+  h1{font-size:17px; margin:0; font-weight:650;}
+  .reset{
+    margin-left:auto; font:inherit; font-size:11px; color:var(--muted);
+    background:none; border:none; cursor:pointer; text-decoration:underline; padding:0;
+  }
+  .reset:hover{color:var(--ink);}
+  main{flex:1; display:flex; flex-direction:column; gap:7px; padding:4px 14px 9px; min-height:0;}
+  .zonentitel{font-size:11.5px; color:var(--muted); margin:0 0 4px;}
+
+  /* ---------- Wolke ---------- */
+  .wolke{
+    background:#fff; border:1px solid var(--line); border-radius:11px; padding:6px 10px 8px;
+  }
+  .schnipsel{display:flex; flex-wrap:wrap; gap:4px; filter:blur(1.4px); opacity:.55; height:38px; overflow:hidden;}
+  .schnipsel span{height:15px; border-radius:4px; flex:none;}
+
+  /* ---------- Trichter ---------- */
+  .trichter{background:#fff; border:1px solid var(--line); border-radius:11px; padding:6px 10px 8px;}
+  .trichtergrid{display:grid; grid-template-columns:repeat(6,1fr); gap:6px;}
+  .tcard{
+    border:none; border-radius:8px; padding:5px 8px 6px; cursor:grab;
+    display:flex; flex-direction:column; gap:2px; text-align:left;
+    font-family:inherit; touch-action:none; min-height:62px;
+  }
+  .tcard:hover{filter:brightness(.96);}
+  .tcard.zieht{opacity:.3;}
+  .tcard.frisch{animation:rein .5s cubic-bezier(.22,.7,.3,1);}
+  @keyframes rein{ from{ opacity:0; transform:translateY(-26px);} to{ opacity:1; transform:none;} }
+  .tcard .t{font-size:11px; line-height:1.22; font-weight:600;}
+  .tcard .h{font-size:9.5px; opacity:.85;}
+  .tcard .g{font-size:9.5px; font-style:italic; opacity:.95;}
+
+  .geist{
+    position:fixed; z-index:50; width:188px; border-radius:8px; padding:5px 8px 6px;
+    pointer-events:none; box-shadow:0 8px 20px rgba(0,0,0,.28); transform:rotate(-2deg);
+  }
+  .geist .t{font-size:11px; line-height:1.22; font-weight:600; display:block;}
+  .geist .h{font-size:9.5px; opacity:.85;}
+
+  /* ---------- Gerät ---------- */
+  .geraet{
+    flex:1; min-height:0; display:flex; gap:16px; background:#fff;
+    border:1px solid var(--line); border-radius:11px; padding:8px 11px;
+    transition:background .4s, border-color .4s, box-shadow .15s;
+  }
+  .geraet.ziel{box-shadow:0 0 0 3px var(--ink) inset;}
+  .handy{
+    width:204px; flex:none; min-height:0; background:#20242b; border-radius:18px; padding:5px;
+    display:flex; flex-direction:column; box-shadow:0 2px 7px rgba(0,0,0,.2);
+  }
+  .statusleiste{height:13px; flex:none; display:flex; align-items:center; justify-content:center;}
+  .kerbe{width:48px; height:6px; background:#0f1216; border-radius:0 0 6px 6px;}
+  .schirm{flex:1; min-height:0; background:#fff; border-radius:13px; padding:6px; overflow:hidden;}
+  .liste{display:flex; flex-direction:column; gap:var(--luft);}
+  .fcard{
+    height:var(--karte); flex:none; border-radius:8px; padding:4px 8px;
+    display:flex; flex-direction:column; justify-content:center; gap:1px; overflow:hidden;
+  }
+  .fcard .t{font-size:11px; line-height:1.2; font-weight:600;}
+  .fcard .h{font-size:9.5px; opacity:.85;}
+  .fcard .g{font-size:9px; font-style:italic; opacity:.9;}
+
+  .c-dafuer{background:var(--dafuer-bg);   color:var(--dafuer-ink);}
+  .c-dagegen{background:var(--dagegen-bg);  color:var(--dagegen-ink);}
+  .c-sachlich{background:var(--sachlich-bg); color:var(--sachlich-ink);}
+
+  .info{flex:1; display:flex; flex-direction:column; min-width:0; padding-top:2px;}
+  .info h2{font-size:15px; margin:0 0 10px; font-weight:650;}
+  .notizbuch{display:flex; flex-direction:column; gap:7px;}
+  .zeile{display:flex; align-items:center; gap:9px;}
+  .zeile .l{font-size:12.5px; width:60px; flex:none;}
+  .zeile .spur{display:block; flex:1; height:16px; border-radius:4px; background:#e4e8ee; overflow:hidden;}
+  .zeile .balken{display:block; height:16px; width:0; border-radius:4px; transition:width .4s ease;}
+  .zeile .n{font-size:13px; font-weight:700; width:18px; text-align:right; flex:none;}
+  .b-dafuer{background:var(--dafuer-bal);}   .l-dafuer,.n-dafuer{color:var(--dafuer-ink);}
+  .b-dagegen{background:var(--dagegen-bal);}  .l-dagegen,.n-dagegen{color:var(--dagegen-ink);}
+  .b-sachlich{background:var(--sachlich-bal);} .l-sachlich,.n-sachlich{color:var(--sachlich-ink);}
+  .neu{font-size:12px; color:var(--muted); margin:12px 0 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Entstehung von Filterblasen</h1>
+  <button class="reset" id="btn-reset">Zur&uuml;cksetzen</button>
+</header>
+
+<main>
+  <section class="wolke">
+    <p class="zonentitel">Alle Beitr&auml;ge zum Handyverbot an Schulen, die es im Netz gibt</p>
+    <div class="schnipsel" id="wolke"></div>
+  </section>
+
+  <section class="trichter">
+    <p class="zonentitel">Was Ihnen davon angeboten wird. Ziehen Sie einen Beitrag auf das Handy.</p>
+    <div class="trichtergrid" id="trichter"></div>
+  </section>
+
+  <section class="geraet" id="geraet">
+    <div class="handy">
+      <div class="statusleiste"><span class="kerbe"></span></div>
+      <div class="schirm"><div class="liste" id="feed"></div></div>
+    </div>
+    <div class="info">
+      <h2>Bisher angeschaut</h2>
+      <div class="notizbuch" id="notizbuch"></div>
+      <p class="neu" id="zugzahl">hineingezogen: 0</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const BEITRAEGE = [
+  {id:1, t:"Heimlich nehmen wir es trotzdem mit", h:"dagegen", bel:14},
+  {id:2, t:"Verbote l\u00f6sen das Problem nicht", h:"dagegen", bel:3},
+  {id:3, t:"Ohne Handy kein Stundenplan", h:"dagegen", bel:18},
+  {id:4, t:"Ein Verbot trifft die Falschen", h:"dagegen", bel:7},
+  {id:5, t:"Wer soll das kontrollieren?", h:"dagegen", bel:11},
+  {id:6, t:"Mein Handy ist mein Notfallkontakt", h:"dagegen", bel:1},
+  {id:7, t:"Verbote machen Handys erst spannend", h:"dagegen", bel:20},
+  {id:8, t:"Wir sind keine Kinder mehr", h:"dagegen", bel:9},
+  {id:9, t:"Lernen ohne Handy ist nicht realistisch", h:"dagegen", bel:5},
+  {id:10, t:"Sch\u00fclerinnen wehren sich gegen das Verbot", h:"dagegen", bel:16},
+  {id:11, t:"Vertrauen statt Verbote", h:"dagegen", bel:2},
+  {id:12, t:"Das Handy geh\u00f6rt zum Unterricht", h:"dagegen", bel:12},
+  {id:13, t:"Medienkompetenz lernt man nicht im Schrank", h:"dagegen", bel:8},
+  {id:14, t:"Ein Verbot verschiebt das Problem nur", h:"dagegen", bel:19},
+  {id:15, t:"Wer draussen steht, bleibt draussen", h:"dagegen", bel:6},
+  {id:16, t:"Die Schule verliert ein Werkzeug", h:"dagegen", bel:13},
+  {id:17, t:"Eltern wollen erreichbar bleiben", h:"dagegen", bel:10},
+  {id:18, t:"Verbot ohne Wirkung, sagt eine Schule", h:"dagegen", bel:4},
+  {id:19, t:"Jugendliche f\u00fchlen sich bevormundet", h:"dagegen", bel:17},
+  {id:20, t:"Regeln statt Verbote w\u00e4ren kl\u00fcger", h:"dagegen", bel:15},
+  {id:21, t:"In der Pause reden sie wieder", h:"daf\u00fcr", bel:14},
+  {id:22, t:"Handys raus aus dem Unterricht", h:"daf\u00fcr", bel:3},
+  {id:23, t:"Jungpartei fordert ein Verbot", h:"daf\u00fcr", bel:18},
+  {id:24, t:"Endlich ist es in den Pausen laut", h:"daf\u00fcr", bel:7},
+  {id:25, t:"Seit dem Verbot schlafen wir besser", h:"daf\u00fcr", bel:11},
+  {id:26, t:"Eine Schule zieht Bilanz: mehr Ruhe", h:"daf\u00fcr", bel:1},
+  {id:27, t:"Ohne Handy l\u00e4uft der Unterricht besser", h:"daf\u00fcr", bel:20},
+  {id:28, t:"Weniger Mobbing seit dem Verbot", h:"daf\u00fcr", bel:9},
+  {id:29, t:"Die Konzentration steigt ohne Handy", h:"daf\u00fcr", bel:5},
+  {id:30, t:"Eltern fordern klare Regeln", h:"daf\u00fcr", bel:16},
+  {id:31, t:"Lehrpersonen atmen auf", h:"daf\u00fcr", bel:2},
+  {id:32, t:"Zehn Schulen, ein gleiches Fazit", h:"daf\u00fcr", bel:12},
+  {id:33, t:"Kein Handy, bessere Noten", h:"daf\u00fcr", bel:8},
+  {id:34, t:"Die Pausen sind wieder Pausen", h:"daf\u00fcr", bel:19},
+  {id:35, t:"Schulleitung zieht die Notbremse", h:"daf\u00fcr", bel:6},
+  {id:36, t:"Weniger Ablenkung, mehr Lernzeit", h:"daf\u00fcr", bel:13},
+  {id:37, t:"Klassen berichten von mehr Ruhe", h:"daf\u00fcr", bel:10},
+  {id:38, t:"Ein Jahr ohne Handy: das Fazit", h:"daf\u00fcr", bel:4},
+  {id:39, t:"Schluss mit dem Dauerblick aufs Display", h:"daf\u00fcr", bel:17},
+  {id:40, t:"Die Bildschirmzeit sinkt deutlich", h:"daf\u00fcr", bel:15},
+  {id:41, t:"Das sagt die Forschung wirklich", h:"sachlich", bel:14},
+  {id:42, t:"F\u00fcnf Kantone, f\u00fcnf Regelungen", h:"sachlich", bel:3},
+  {id:43, t:"Umfrage bei Lehrpersonen", h:"sachlich", bel:18},
+  {id:44, t:"Wie andere L\u00e4nder es l\u00f6sen", h:"sachlich", bel:7},
+  {id:45, t:"Was im Schulgesetz dazu steht", h:"sachlich", bel:11},
+  {id:46, t:"Drei Schulen, drei Modelle", h:"sachlich", bel:1},
+  {id:47, t:"Zahlen zur Handynutzung", h:"sachlich", bel:20},
+  {id:48, t:"Was Fachleute empfehlen", h:"sachlich", bel:9},
+  {id:49, t:"Was die Studienlage hergibt", h:"sachlich", bel:5},
+  {id:50, t:"\u00dcberblick \u00fcber die Regelungen", h:"sachlich", bel:16},
+  {id:51, t:"Wer entscheidet dar\u00fcber?", h:"sachlich", bel:2},
+  {id:52, t:"Argumente beider Seiten", h:"sachlich", bel:12},
+  {id:53, t:"Chronologie der Debatte", h:"sachlich", bel:8},
+  {id:54, t:"Was Betroffene berichten", h:"sachlich", bel:19},
+  {id:55, t:"Die wichtigsten Begriffe erkl\u00e4rt", h:"sachlich", bel:6},
+  {id:56, t:"Daten aus der Schweiz", h:"sachlich", bel:13},
+  {id:57, t:"Wie Studien angelegt sind", h:"sachlich", bel:10},
+  {id:58, t:"Zwei Fachleute im Gespr\u00e4ch", h:"sachlich", bel:4},
+  {id:59, t:"Was bisher untersucht wurde", h:"sachlich", bel:17},
+  {id:60, t:"H\u00e4ufige Fragen zum Thema", h:"sachlich", bel:15},
+];
+
+const START_FEED = [1, 21, 41, 3, 22];   // bewusst gemischt
+
+const HALTUNGEN = ["dafür","dagegen","sachlich"];
+const KLASSE    = {"dafür":"dafuer","dagegen":"dagegen","sachlich":"sachlich"};
+const FARBE     = {"dafür":[250,227,184], "dagegen":[207,220,248], "sachlich":[210,229,217]};
+const GRUND_TEXT = {
+  content:      "weil Sie Ähnliches angeschaut haben",
+  kollaborativ: "weil Leute wie Sie das anschauen"
+};
+const MAX_BALKEN = 12;
+const SICHTBAR   = 5;
+const PLAETZE    = 6;
+const SCHRITT    = 50;   // Kartenhöhe plus Abstand
+
+const hole = id => BEITRAEGE.find(b => b.id === id);
+let zaehler, feed, trichter, zuege;
+
+function reset(){
+  zaehler  = {"dafür":2, "dagegen":2, "sachlich":2};
+  feed     = START_FEED.map(id => ({ id, grund:null }));
+  zuege    = 0;
+  trichter = [];
+  trichter = angebot().map(b => ({ id: b.id, grund: null }));   // Start ohne Begründung
+  zeichneWolke();
+  zeichneTrichter(null);
+  zeichneNotizbuch();
+  zeichneFeed(0);
+}
+
+/* Die Wolke ist unlesbar und verändert sich nie: das Angebot im Netz bleibt
+   gleich, enger wird nur, was davon bei mir ankommt. */
+function zeichneWolke(){
+  const stuecke = [];
+  for(let i = 0; i < 60; i++) stuecke.push(HALTUNGEN[(i + Math.floor(i / 3)) % 3]);
+  document.getElementById("wolke").innerHTML = stuecke.map((h,i) =>
+    `<span class="c-${KLASSE[h]}" style="width:${34 + (i * 13) % 46}px"></span>`
+  ).join("");
+}
+
+/* Was der Algorithmus gerade anbietet: Rang aus der bisherigen Nutzung und der
+   Beliebtheit. Je höher ein Zähler, desto stärker verdrängt diese Richtung die
+   anderen aus dem Trichter. */
+// Das Gewicht steuert das Tempo: je höher, desto schneller verdrängt die
+// bevorzugte Richtung die anderen aus dem Trichter.
+// Das Gewicht steuert das Tempo der Verengung: höher gleich schneller.
+const GEWICHT = 3;
+const rang = b => zaehler[b.h] * GEWICHT + b.bel;
+
+function angebot(){
+  // Was auf dem Handy sichtbar ist, wird nicht noch einmal angeboten.
+  const aufHandy = new Set(feed.slice(0, SICHTBAR).map(e => e.id));
+  return BEITRAEGE
+    .filter(b => !aufHandy.has(b.id))
+    .sort((a,b) => (rang(b) - rang(a)) || (b.bel - a.bel))
+    .slice(0, PLAETZE);
+}
+
+/* Plätze behalten, deren Beitrag weiterhin angeboten wird; die übrigen neu
+   besetzen. Der beliebteste Zugang gilt als Empfehlung der Gruppe. */
+function aktualisiereTrichter(){
+  const soll    = angebot();
+  const sollIds = new Set(soll.map(b => b.id));
+  const plaetze = trichter.map(e => (e && sollIds.has(e.id)) ? e : null);
+  const drin    = new Set(plaetze.filter(Boolean).map(e => e.id));
+  const zugang  = soll.filter(b => !drin.has(b.id));
+  const kollab  = zugang.length ? zugang.slice().sort((a,b) => b.bel - a.bel)[0].id : null;
+
+  const frisch = [];
+  let k = 0;
+  for(let i = 0; i < PLAETZE; i++){
+    if(plaetze[i] === null && k < zugang.length){
+      const b = zugang[k++];
+      plaetze[i] = { id: b.id, grund: b.id === kollab ? "kollaborativ" : "content" };
+      frisch.push(b.id);
+    }
+  }
+  trichter = plaetze.filter(Boolean);
+  return frisch;
+}
+
+function zeichneTrichter(frisch){
+  const neu = new Set(frisch || []);
+  document.getElementById("trichter").innerHTML = trichter.map(e => {
+    const b = hole(e.id);
+    const g = e.grund ? `<span class="g">${GRUND_TEXT[e.grund]}</span>` : "";
+    const f = neu.has(e.id) ? " frisch" : "";
+    return `<div class="tcard c-${KLASSE[b.h]}${f}" data-id="${b.id}">`
+         + `<span class="t">${b.t}</span><span class="h">${b.h}</span>${g}</div>`;
+  }).join("");
+}
+
+function baueNotizbuch(){
+  document.getElementById("notizbuch").innerHTML = HALTUNGEN.map(h => {
+    const k = KLASSE[h];
+    return `<div class="zeile"><span class="l l-${k}">${h}</span>`
+         + `<span class="spur"><span class="balken b-${k}" data-h="${h}"></span></span>`
+         + `<span class="n n-${k}" data-h="${h}">0</span></div>`;
+  }).join("");
+}
+
+function zeichneNotizbuch(){
+  const nb = document.getElementById("notizbuch");
+  HALTUNGEN.forEach(h => {
+    nb.querySelector(`.balken[data-h="${h}"]`).style.width =
+      Math.min(100, zaehler[h] / MAX_BALKEN * 100) + "%";
+    nb.querySelector(`.n[data-h="${h}"]`).textContent = zaehler[h];
+  });
+  document.getElementById("zugzahl").textContent = "hineingezogen: " + zuege;
+}
+
+function zeichneFeed(neuOben){
+  const liste = document.getElementById("feed");
+  // Die Begründung steht nur im Trichter, dort wird ja ausgewählt.
+  liste.innerHTML = feed.slice(0, SICHTBAR + 2).map(e => {
+    const b = hole(e.id);
+    return `<div class="fcard c-${KLASSE[b.h]}"><span class="t">${b.t}</span>`
+         + `<span class="h">${b.h}</span></div>`;
+  }).join("");
+
+  if(neuOben > 0){
+    liste.style.transition = "none";
+    liste.style.transform  = `translateY(-${neuOben * SCHRITT}px)`;
+    void liste.offsetHeight;
+    liste.style.transition = "transform .45s cubic-bezier(.22,.7,.3,1)";
+    liste.style.transform  = "translateY(0)";
+  } else {
+    liste.style.transition = "none";
+    liste.style.transform  = "translateY(0)";
+  }
+
+  // Die Box färbt sich nach den Anteilen auf dem Handy, je einseitiger desto kräftiger.
+  const sicht  = feed.slice(0, SICHTBAR).map(e => hole(e.id));
+  const anteil = {};
+  HALTUNGEN.forEach(h => anteil[h] = sicht.filter(b => b.h === h).length / sicht.length);
+  const misch  = [0,1,2].map(i => HALTUNGEN.reduce((s,h) => s + anteil[h] * FARBE[h][i], 0));
+  const max    = Math.max(...HALTUNGEN.map(h => anteil[h]));
+  const stark  = Math.min(1, Math.max(0, (max - 1/3) / (2/3)) * 1.2);
+  const ton    = s => `rgb(${misch.map(c => Math.round(255 + (c - 255) * s)).join(",")})`;
+  const box = document.getElementById("geraet");
+  box.style.background  = ton(stark);
+  box.style.borderColor = ton(Math.min(1, stark * 1.9));
+}
+
+function hineinziehen(eintrag){
+  const b = hole(eintrag.id);
+  zaehler[b.h] += 1;
+  zuege += 1;
+
+  feed.unshift({ id: b.id, grund: eintrag.grund });
+  feed = feed.slice(0, 12);
+
+  const frisch = aktualisiereTrichter();
+
+  zeichneTrichter(frisch);
+  zeichneNotizbuch();
+  zeichneFeed(1);
+}
+
+/* ---------- Ziehen ---------- */
+let geist = null, quelle = null, ueberZiel = false;
+
+function ueberGeraet(x, y){
+  const r = document.getElementById("geraet").getBoundingClientRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+function markiere(an){
+  if(ueberZiel === an) return;
+  ueberZiel = an;
+  document.getElementById("geraet").classList.toggle("ziel", an);
+}
+
+document.getElementById("trichter").addEventListener("pointerdown", e => {
+  const karte = e.target.closest(".tcard");
+  if(!karte) return;
+  e.preventDefault();
+  quelle = karte;
+  karte.classList.add("zieht");
+  const b = hole(Number(karte.dataset.id));
+  geist = document.createElement("div");
+  geist.className = "geist c-" + KLASSE[b.h];
+  geist.innerHTML = `<span class="t">${b.t}</span><span class="h">${b.h}</span>`;
+  document.body.appendChild(geist);
+  bewege(e.clientX, e.clientY);
+});
+
+function bewege(x, y){
+  if(!geist) return;
+  geist.style.left = (x - 94) + "px";
+  geist.style.top  = (y - 18) + "px";
+}
+
+document.addEventListener("pointermove", e => {
+  if(!geist) return;
+  bewege(e.clientX, e.clientY);
+  markiere(ueberGeraet(e.clientX, e.clientY));
+});
+
+document.addEventListener("pointerup", e => {
+  if(!geist) return;
+  const id = Number(quelle.dataset.id);
+  const treffer = ueberGeraet(e.clientX, e.clientY);
+  geist.remove(); geist = null;
+  quelle.classList.remove("zieht"); quelle = null;
+  markiere(false);
+  if(treffer){
+    const eintrag = trichter.find(x => x.id === id);
+    if(eintrag) hineinziehen(eintrag);
+  }
+});
+
+document.getElementById("btn-reset").addEventListener("click", reset);
+
+baueNotizbuch();
+reset();
+</script>
+</body>
+</html>
