@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wen stellen Sie an?</title>
+<style>
+:root{
+  --pult:#a9825c; --ink:#2a2420; --muted:#7d7266;
+  --paper:#fdfbf6; --ok:#1f8a58; --no:#c0483f; --mark:#2f6df6;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  background:var(--pult);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:14px;line-height:1.35;display:flex;flex-direction:column;
+  background-image:repeating-linear-gradient(94deg,rgba(0,0,0,.05) 0 2px,transparent 2px 9px);
+}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+
+header{display:flex;align-items:baseline;gap:12px;padding:7px 18px;flex:none;
+  background:rgba(40,28,18,.28);color:#fff2e2}
+header h1{font-size:15px;margin:0;font-weight:650}
+header p{margin:0;font-size:12.5px;opacity:.8}
+header .sp{flex:1}
+.rnd{font-size:12.5px;background:rgba(0,0,0,.22);padding:3px 11px;border-radius:8px}
+.rnd b{font-size:14px}
+
+main{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:10px 18px;min-height:0}
+.zone{display:flex;flex-direction:column;min-height:0}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:rgba(255,255,255,.78);margin:0 0 5px 2px;display:flex;align-items:baseline;gap:9px}
+.lbl .stelle{text-transform:none;letter-spacing:0;font-size:13px;color:#fff;
+  background:rgba(0,0,0,.25);padding:2px 9px;border-radius:7px}
+
+/* ---------- Erfahrungsschatz, linke Hälfte ---------- */
+.block{background:#fffdf5;border-radius:4px;padding:14px 18px;flex:1;min-height:0;
+  box-shadow:0 8px 18px rgba(0,0,0,.26);display:flex;flex-direction:column;overflow:hidden}
+.block h2{margin:0;font-size:17px;font-weight:700}
+.block .erkl{margin:3px 0 10px;font-size:12.5px;color:var(--muted)}
+.rules{list-style:none;margin:0;padding:0;overflow:hidden;flex:1;
+  background-image:repeating-linear-gradient(transparent 0 25px,#ece4d1 25px 26px)}
+.rules li{display:flex;align-items:baseline;gap:10px;font-size:14.5px;line-height:26px;height:26px;
+  padding:0 6px;margin:0 -6px;border-radius:4px;transition:background .12s}
+.rules li.on{background:#e4edff;box-shadow:inset 0 0 0 1px #b9cdf5}
+.rules .r{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rules .z{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.leer{color:var(--muted);font-size:13.5px;line-height:26px}
+
+/* ---------- Pult, rechte Hälfte ---------- */
+.mappen{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px;flex:1;min-height:0}
+.mappe{
+  background:var(--paper);border-radius:3px;padding:9px 11px 9px;
+  display:flex;flex-direction:column;box-shadow:0 6px 14px rgba(0,0,0,.22);
+  transition:transform .12s, box-shadow .12s;position:relative;
+}
+.mappe:nth-child(1){transform:rotate(-.6deg)}
+.mappe:nth-child(4){transform:rotate(.5deg)}
+.mappe:hover{transform:translateY(-3px) rotate(0deg);box-shadow:0 12px 22px rgba(0,0,0,.28)}
+.mappe.off{opacity:.42;filter:grayscale(.6);transform:none}
+.mappe.hired{outline:3px solid var(--mark)}
+.mappe .nam{font-weight:700;font-size:15px;line-height:1.15}
+.mappe .sub{font-size:12px;color:var(--muted);margin-bottom:6px}
+.erinn{font-size:11px;color:var(--muted);margin-bottom:2px}
+.fazit{font-size:12.5px;font-weight:700;margin-top:4px}
+.lern{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.3}
+.hit{font-size:11.5px;padding:1px 6px;border-radius:4px;background:#eef6f0;color:var(--ok);
+  display:block;margin-bottom:2px}
+.hit.bad{background:#fbeceb;color:var(--no)}
+.hit.neu{background:#f1efe9;color:var(--muted)}
+.einst{margin-top:auto;border:none;background:var(--mark);color:#fff;font-weight:650;
+  padding:6px 0;border-radius:7px;font-size:13px}
+.einst:hover{background:#215bdb}
+.lernnote{background:#e4edff;border-radius:5px;padding:6px 9px;font-size:12.5px;
+  color:#1d4fbf;font-weight:600;margin:0 0 9px}
+.stamp{position:absolute;right:9px;top:7px;font-size:21px;font-weight:800}
+
+.ablage{height:52px;display:flex;align-items:center;gap:7px;margin-top:9px;
+  background:rgba(0,0,0,.14);border-radius:6px;padding:7px 11px;color:#fff2e2;font-size:12px}
+.stapel{display:flex;gap:4px;flex:1}
+.blatt{width:22px;height:29px;background:#d8d2c6;border-radius:2px;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+
+/* ---------- Bilanz ---------- */
+.bilanz{display:grid;grid-template-columns:repeat(5,1fr);grid-auto-rows:1fr;gap:6px;flex:1;min-height:0}
+.mini{background:var(--paper);border-radius:3px;padding:5px 7px;font-size:11px;
+  box-shadow:0 3px 8px rgba(0,0,0,.2);display:flex;flex-direction:column;justify-content:center;
+  opacity:.72}
+.mini .q{font-weight:800;font-size:12px;margin-top:2px}
+.mini .wer{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.mini.ein{outline:2px solid var(--mark);opacity:1}
+.mini.ein .wer{color:var(--mark);font-weight:700}
+
+/* ---------- Rückfrage ---------- */
+.dim{position:fixed;inset:0;background:rgba(30,20,12,.5);display:none;
+  align-items:center;justify-content:center;z-index:50}
+.dim.on{display:flex}
+.ask{background:var(--paper);border-radius:8px;padding:20px 22px;max-width:440px;
+  box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.ask h3{margin:0 0 7px;font-size:15px}
+.ask p{margin:0 0 6px;font-size:13.5px}
+.ask .zitat{background:#fbeceb;color:var(--no);border-radius:5px;padding:7px 10px;
+  font-size:13px;font-weight:600;margin:9px 0}
+.ask .btns{display:flex;gap:9px;margin-top:14px}
+.primary{background:var(--mark);color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:650}
+.ghost{background:rgba(255,255,255,.9);border:1px solid #d9d2c6;color:#3a3129;padding:9px 15px;border-radius:9px}
+
+footer{flex:none;height:44px;padding:0 18px 10px;display:flex;align-items:center;gap:10px;color:#fff2e2}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wen stellen Sie an?</h1>
+  <p>Sie leiten eine Schule. Pro Runde eine offene Stelle, vier Bewerbungen.</p>
+  <span class="sp"></span>
+  <span class="rnd">Runde <b id="rnum">1</b> von 5</span>
+</header>
+
+<main id="main">
+  <div class="zone">
+    <p class="lbl">Mein Erfahrungsschatz</p>
+    <div class="block">
+      <h2 id="blocktitel">Was ich bisher erlebt habe</h2>
+      <p class="erkl" id="erkl">«2 von 3 gut» heisst: Ich habe drei solche Personen angestellt, zwei haben sich bewährt.</p>
+      <p class="lernnote" id="lernnote" style="display:none"></p>
+      <ul class="rules" id="rules"></ul>
+    </div>
+  </div>
+
+  <div class="zone" id="rechts">
+    <p class="lbl" id="leftlbl">Auf dem Pult <span class="stelle" id="stelle"></span></p>
+    <div class="mappen" id="pult"></div>
+    <div class="ablage" id="ablage">
+      <span>Abgelehnt</span><span class="stapel" id="stapel"></span>
+      <span>Nie erfahren, wie es geworden wäre.</span>
+    </div>
+  </div>
+</main>
+
+<footer><span id="foot"></span></footer>
+
+<div class="dim" id="dim">
+  <div class="ask">
+    <h3>Sicher?</h3>
+    <p id="askwho"></p>
+    <div class="zitat" id="askwarum"></div>
+    <p id="askalt"></p>
+    <div class="btns">
+      <button class="primary" onclick="closeAsk(false)">Nochmals überlegen</button>
+      <button class="ghost" onclick="closeAsk(true)">Trotzdem anstellen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =======================================================================
+   Bewerbungen. Pro Runde eine ausgeschriebene Stelle in einem Fach.
+   Die Qualität (letzter Wert) ist von allen Merkmalen unabhängig:
+   12 von 20 sind gut, gleichmässig über Geschlecht und Universität.
+   Namen sind frei erfunden. Zum Austauschen nur diese Liste ändern.
+   ======================================================================= */
+const RUNDEN = [
+  { fach:'Mathematik', leute:[
+    ['Nadia','Vonlanthen','w','Bern','Burgdorf',6,true],
+    ['Pascal','Marthaler','m','Zürich','Thun',3,true],
+    ['Reto','Zumbrunn','m','Bern','Biel',14,true],
+    ['Lea','Gfeller','w','Fribourg','Münsingen',9,false]]},
+  { fach:'Deutsch', leute:[
+    ['Simon','Känzig','m','Fribourg','Biel',7,true],
+    ['Rahel','Obrecht','w','Bern','Münsingen',5,true],
+    ['Fabienne','Niederhauser','w','Zürich','Burgdorf',12,true],
+    ['Daniel','Vonlanthen','m','Bern','Thun',11,false]]},
+  { fach:'Sport', leute:[
+    ['Tanja','Rohrbach','w','Zürich','Thun',10,false],
+    ['Lukas','Marthaler','m','Fribourg','Münsingen',6,true],
+    ['Corinne','Bachofner','w','Bern','Biel',4,true],
+    ['Patrick','Zumbrunn','m','Bern','Burgdorf',8,false]]},
+  { fach:'Musik', leute:[
+    ['Anja','Stiefel','w','Zürich','Burgdorf',4,true],
+    ['Beat','Gfeller','m','Bern','Thun',2,false],
+    ['Mirjam','Känzig','w','Fribourg','Biel',7,true],
+    ['Nils','Obrecht','m','Bern','Münsingen',13,true]]},
+  { fach:'Biologie', leute:[
+    ['Céline','Niederhauser','w','Bern','Münsingen',3,false],
+    ['Joel','Rohrbach','m','Fribourg','Burgdorf',4,false],
+    ['Andreas','Bachofner','m','Bern','Thun',9,true],
+    ['Sarah','Stiefel','w','Zürich','Biel',6,false]]}
+];
+
+let ID = 0;
+const ALLE = [];
+RUNDEN.forEach((r, ri) => r.leute.forEach(a => ALLE.push({
+  i:ID++, runde:ri, fach:r.fach, vor:a[0], nam:a[1], g:a[2], uni:a[3], ort:a[4], j:a[5], gut:a[6]
+})));
+const GUT_TOTAL = ALLE.filter(p => p.gut).length;
+
+const GESCHL = g => g === 'w' ? 'Frau' : 'Mann';
+const keys = p => [
+  (p.g === 'w' ? 'Frauen' : 'Männer') + ' in ' + p.fach,
+  'Studium Uni ' + p.uni,
+  'Wohnort ' + p.ort,
+  'Familie ' + p.nam
+];
+
+let schatz, runde, eingestellt, abgelehnt, phase, letzte;
+
+function reset(){
+  // Erinnerung aus früheren Jahren: hier beginnt die Verzerrung
+  schatz = {
+    'Männer in Mathematik': {gut:2, n:2},
+    'Studium Uni Bern':     {gut:3, n:3},
+    'Studium Uni Zürich':   {gut:0, n:1}
+  };
+  runde = 0; eingestellt = []; abgelehnt = []; phase = 'wahl'; letzte = null;
+  document.getElementById('main').style.gridTemplateColumns = '1fr 1fr';
+  document.getElementById('rechts').style.display = '';
+  document.getElementById('blocktitel').textContent = 'Was ich bisher erlebt habe';
+  document.getElementById('erkl').style.display = '';
+  document.getElementById('ablage').style.display = '';
+  draw();
+}
+
+const dran  = () => ALLE.filter(p => p.runde === runde);
+const quote = k => schatz[k] ? schatz[k].gut / schatz[k].n : null;
+
+function score(p){
+  let gut = 0, n = 0;
+  keys(p).forEach(k => { if (schatz[k]){ gut += schatz[k].gut; n += schatz[k].n; } });
+  return n ? gut / n : null;
+}
+
+function draw(){
+  document.getElementById('rnum').textContent = Math.min(runde + 1, 5);
+  document.getElementById('stelle').textContent = 'Offene Stelle: ' + RUNDEN[Math.min(runde,4)].fach;
+
+  const pult = document.getElementById('pult');
+  pult.className = 'mappen';
+  pult.innerHTML = '';
+
+  dran().forEach(p => {
+    const ist = letzte === p.i;
+    const d = document.createElement('div');
+    d.className = 'mappe' + (phase === 'ergebnis' ? (ist ? ' hired' : ' off') : '');
+    const hits = keys(p).map(k => {
+      const q = quote(k);
+      if (q === null) return '';
+      return `<span class="hit${q < 0.5 ? ' bad' : ''}">${k}: ${schatz[k].gut} von ${schatz[k].n} gut</span>`;
+    }).join('');
+    const kopf =
+      `${phase === 'ergebnis' && ist
+          ? `<span class="stamp" style="color:${p.gut?'var(--ok)':'var(--no)'}">${p.gut?'✓':'✗'}</span>` : ''}
+       <span class="nam">${p.vor} ${p.nam}</span>
+       <span class="sub">${GESCHL(p.g)} · Uni ${p.uni} · ${p.ort} · ${p.j} Jahre</span>`;
+
+    if (phase === 'wahl')
+      d.innerHTML = kopf +
+        `<span class="erinn">Meine Erfahrung:</span>
+         ${hits || '<span class="hit neu">keine, mit diesem Profil hatte ich noch nie zu tun</span>'}
+         <button class="einst">Anstellen</button>`;
+    else if (ist)
+      d.innerHTML = kopf +
+        `<span class="fazit" style="color:${p.gut?'var(--ok)':'var(--no)'}">
+           Nach einem Jahr: ${p.gut ? 'hat sich bewährt' : 'hat sich weniger bewährt'}</span>
+         <span class="lern">Das trage ich links in meinen Erfahrungsschatz ein.</span>`;
+    else
+      d.innerHTML = kopf +
+        `<span class="lern">Abgelehnt. Wie es mit dieser Person geworden wäre, erfahre ich nie.</span>`;
+
+    const btn = d.querySelector('.einst');
+    if (btn) btn.onclick = () => waehlen(p);
+    d.onmouseenter = () => markieren(keys(p));
+    d.onmouseleave = () => markieren(phase === 'ergebnis' && letzte !== null ? keys(ALLE[letzte]) : []);
+    pult.appendChild(d);
+  });
+
+  drawSchatz();
+  const note = document.getElementById('lernnote');
+  if (phase === 'ergebnis' && letzte !== null){
+    const p = ALLE[letzte];
+    note.textContent = `Durch die Anstellung von ${p.vor} ${p.nam} habe ich dazugelernt:`;
+    note.style.display = '';
+  } else note.style.display = 'none';
+  document.getElementById('stapel').innerHTML = abgelehnt.map(() => '<span class="blatt"></span>').join('');
+
+  const foot = document.getElementById('foot');
+  foot.innerHTML = phase === 'ergebnis'
+    ? `<button class="primary" id="next">${runde === 4 ? 'Ablage öffnen' : 'Nächste Runde'}</button>`
+    : '';
+  if (phase === 'ergebnis')
+    document.getElementById('next').onclick = () => {
+      if (runde === 4){ bilanz(); return; }
+      runde++; phase = 'wahl'; letzte = null; draw();
+    };
+}
+
+function drawSchatz(){
+  const ul = document.getElementById('rules');
+  const e = Object.entries(schatz).sort((a,b) => b[1].n - a[1].n || a[0].localeCompare(b[0])).slice(0,13);
+  ul.innerHTML = e.map(([k,v]) =>
+    `<li data-k="${k}"><span class="r">${k}</span>
+      <span class="z" style="color:${v.gut/v.n < 0.5 ? 'var(--no)' : 'var(--ok)'}">${v.gut} von ${v.n} gut</span></li>`
+  ).join('');
+}
+
+function markieren(ks){
+  document.querySelectorAll('.rules li').forEach(li =>
+    li.classList.toggle('on', ks.includes(li.dataset.k)));
+}
+
+/* ---------- Rückfrage beim Abweichen ---------- */
+let offen = null;
+function waehlen(p){
+  const beste = dran().reduce((a,b) => ((score(b) ?? -1) > (score(a) ?? -1) ? b : a));
+  if ((score(p) ?? -1) < (score(beste) ?? -1)){ offen = p; rueckfrage(p, beste); }
+  else anstellen(p);
+}
+
+function rueckfrage(p, beste){
+  const schlecht = keys(p).map(k => [k, quote(k)]).filter(x => x[1] !== null && x[1] < 0.5);
+  const unbekannt = keys(p).every(k => quote(k) === null);
+  document.getElementById('askwho').textContent = `Sie wollen ${p.vor} ${p.nam} anstellen.`;
+  document.getElementById('askwarum').textContent = schlecht.length
+    ? schlecht.map(([k]) => `${k}: nur ${schatz[k].gut} von ${schatz[k].n} gut`).join(' · ')
+    : unbekannt
+      ? 'Mit diesem Profil haben Sie noch keine Erfahrung.'
+      : 'Ihre Erfahrung spricht für jemand anderen.';
+  document.getElementById('askalt').textContent =
+    `${beste.vor} ${beste.nam} passt besser zu dem, was Sie bisher erlebt haben.`;
+  document.getElementById('dim').classList.add('on');
+}
+
+function closeAsk(trotzdem){
+  document.getElementById('dim').classList.remove('on');
+  if (trotzdem && offen) anstellen(offen);
+  offen = null;
+}
+
+function anstellen(p){
+  eingestellt.push(p);
+  dran().forEach(q => { if (q.i !== p.i) abgelehnt.push(q); });
+  keys(p).forEach(k => {
+    if (!schatz[k]) schatz[k] = {gut:0, n:0};
+    schatz[k].n++;
+    if (p.gut) schatz[k].gut++;
+  });
+  phase = 'ergebnis'; letzte = p.i;
+  draw();
+  markieren(keys(p));
+}
+
+/* ---------- Aufdeckung ---------- */
+function bilanz(){
+  const gutEin = eingestellt.filter(p => p.gut).length;
+  const gutAb  = abgelehnt.filter(p => p.gut).length;
+  const klein  = Object.values(schatz).filter(v => v.n <= 3).length;
+
+  document.getElementById('main').style.gridTemplateColumns = '420px 1fr';
+  document.getElementById('ablage').style.display = 'none';
+  document.getElementById('erkl').style.display = 'none';
+  document.getElementById('lernnote').style.display = 'none';
+  document.getElementById('leftlbl').firstChild.textContent = 'Alle zwanzig Bewerbungen ';
+  document.getElementById('stelle').textContent =
+    'Wie sich jede Person nach einem Jahr entwickelt hätte';
+
+  const pult = document.getElementById('pult');
+  pult.className = 'bilanz';
+  pult.innerHTML = ALLE.map(p =>
+    `<div class="mini${eingestellt.includes(p) ? ' ein' : ''}">
+       <span class="wer">${eingestellt.includes(p) ? 'angestellt' : 'abgelehnt'}</span>
+       <b>${p.vor} ${p.nam}</b>
+       <span style="color:var(--muted)">${p.fach} · Uni ${p.uni}</span>
+       <span class="q" style="color:${p.gut?'var(--ok)':'var(--no)'}">${p.gut?'✓ bewährt':'✗ weniger bewährt'}</span>
+     </div>`).join('');
+
+  document.getElementById('blocktitel').textContent = 'Was wirklich war';
+  document.getElementById('rules').style.backgroundImage = 'none';
+  document.getElementById('rules').innerHTML =
+    `<li class="leer" style="display:block;height:auto;line-height:1.55;color:var(--ink);font-size:14px">
+       Rechts steht für jede Person, ob sie sich nach einem Jahr bewährt hätte. Bei den Angestellten
+       haben Sie es gesehen, bei den Abgelehnten nie.<br><br>
+       Alle 20 hatten dieselbe Chance: ${GUT_TOTAL} von 20 haben sich bewährt, unabhängig von
+       Geschlecht, Universität, Wohnort und Name.<br><br>
+       Angestellt haben Sie 5, davon haben sich <b>${gutEin}</b> bewährt.<br>
+       Von den 15 Abgelehnten hätten sich <b>${gutAb}</b> bewährt.<br><br>
+       ${klein} Ihrer Regeln beruhen auf höchstens drei Fällen. Der Familienname sagt nichts aus,
+       gezählt wurde er trotzdem.<br><br>
+       <b>Ein KI-System arbeitet gleich:</b> Es zählt, was es gesehen hat, und sieht nie, was es
+       abgelehnt hat.
+     </li>`;
+  document.getElementById('foot').innerHTML = '<button class="ghost" id="neu">Von vorn</button>';
+  document.getElementById('neu').onclick = () => {
+    document.getElementById('rules').style.backgroundImage = '';
+    reset();
+  };
+}
+
+reset();
+</script>
+</body>
+</html>
